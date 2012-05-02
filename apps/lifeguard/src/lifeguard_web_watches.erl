@@ -7,6 +7,7 @@
          create_path/2,
          content_types_accepted/2,
          content_types_provided/2,
+         delete_resource/2,
          get_watch/2,
          get_watches/2,
          malformed_request/2,
@@ -46,6 +47,8 @@ allowed_methods(ReqData, Context) ->
 malformed_request(ReqData, Context) ->
     malformed_request_by_method(ReqData, Context, wrq:method(ReqData)).
 
+malformed_request_by_method(ReqData, Context, 'DELETE') ->
+    {false, ReqData, Context};
 malformed_request_by_method(ReqData, Context, 'GET') ->
     {false, ReqData, Context};
 malformed_request_by_method(ReqData, Context, _) ->
@@ -107,6 +110,10 @@ content_types_provided(ReqData, #state{watch_name=Name} = Context) ->
 content_types_accepted(ReqData, Context) ->
     Handlers = [{"application/json", put_watch}],
     {Handlers, ReqData, Context}.
+
+delete_resource(ReqData, #state{watch_name=Name} = Context) ->
+    ok = lifeguard_watch_manager:delete_watch(Name),
+    {true, ReqData, Context}.
 
 %% @doc Gets a single watch and returns a JSON object associated with it.
 get_watch(ReqData, #state{watch_old_data=Watch} = Context) ->
