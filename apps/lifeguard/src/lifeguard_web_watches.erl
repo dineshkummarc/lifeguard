@@ -119,37 +119,33 @@ validate_struct(Struct) ->
     end.
 
 validate_name(Struct, P, E) ->
-    case json_get_key(<<"name">>, Struct) of
-        undefined ->
+    Key = <<"name">>,
+    case lists:keyfind(Key, 1, Struct) of
+        false ->
             {P, [<<"'name' is required">> | E]};
-        Value ->
+        {Key, Value} ->
             {[{name, Value} | P], E}
     end.
 
 validate_code(Struct, P, E) ->
-    case json_get_key(<<"code">>, Struct) of
-        undefined ->
+    Key = <<"code">>,
+    case lists:keyfind(Key, 1, Struct) of
+        false ->
             {P, [<<"'code' is required">> | E]};
-        Value ->
+        {Key, Value} ->
             {[{code, Value} | P], E}
     end.
 
 validate_interval(Struct, P, E) ->
-    case json_get_key(<<"interval">>, Struct) of
-        undefined ->
+    Key = <<"interval">>,
+    case lists:keyfind(Key, 1, Struct) of
+        false ->
             {P, [<<"'interval' is required">> | E]};
-        Value when is_integer(Value) ->
+        {Key, Value} when is_integer(Value) ->
             {[{interval, Value} | P], E};
         _ ->
             {P, [<<"'interval' must be an integer">> | E]}
     end.
-
-json_get_key(_Key, []) ->
-    undefined;
-json_get_key(Needle, [{Key, Value} | _]) when Needle =:= Key ->
-    Value;
-json_get_key(Key, [{_, _} | Rest]) ->
-    json_get_key(Key, Rest).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Test Methods
@@ -197,11 +193,5 @@ validate_interval_bad_test() ->
     Struct = [{<<"nope">>, <<"bar">>}],
     {[], Errors} = validate_interval(Struct, [], []),
     ?assert(length(Errors) > 0).
-
-json_get_key_test() ->
-    Struct = [{<<"foo">>, <<"bar">>}, {<<"bar">>, <<"baz">>}],
-    ?assertEqual(undefined, json_get_key(<<"baz">>, Struct)),
-    ?assertEqual(<<"bar">>, json_get_key(<<"foo">>, Struct)),
-    ?assertEqual(<<"baz">>, json_get_key(<<"bar">>, Struct)).
 
 -endif.
