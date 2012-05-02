@@ -20,6 +20,7 @@ main_test_() ->
             fun test_set_watch/1,
             fun test_get_watch_nonexistent/1,
             fun test_get_watch/1,
+            fun test_list_watches/1,
             fun test_delete_watch_nonexistent/1,
             fun test_delete_watch/1
         ]}.
@@ -39,7 +40,7 @@ teardown(Pid) ->
 
 test_set_watch(_) ->
     fun() ->
-            ok = ?TEST_MODULE:set_watch("Foo", "code", 5)
+            ok = ?TEST_MODULE:set_watch("foo", "code", 5)
     end.
 
 test_get_watch_nonexistent(_) ->
@@ -58,6 +59,20 @@ test_get_watch(_) ->
 
             % Get it
             {ok, {Name, Code, Interval}} = ?TEST_MODULE:get_watch(Name)
+    end.
+
+test_list_watches(_) ->
+    fun() ->
+            Code = "code",
+            Interval = 5,
+
+            % Set it
+            ok = ?TEST_MODULE:set_watch("foo", Code, Interval),
+            ok = ?TEST_MODULE:set_watch("bar", Code, Interval),
+
+            % Get em
+            {ok, Result} = ?TEST_MODULE:list_watches(),
+            ?assert(length(Result) =:= 2)
     end.
 
 test_delete_watch_nonexistent(_) ->

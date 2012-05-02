@@ -1,6 +1,10 @@
 -module(lifeguard_watch_manager).
 -behavior(gen_server).
--export([start_link/1, delete_watch/1, get_watch/1, set_watch/3]).
+-export([start_link/1,
+         delete_watch/1,
+         get_watch/1,
+         list_watches/0,
+         set_watch/3]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -record(watch, {
@@ -23,6 +27,11 @@ start_link(StoragePath) ->
 -spec delete_watch(string()) -> ok.
 delete_watch(Name) ->
     gen_server:call(?MODULE, {delete, Name}).
+
+%% @doc Lists all the watches in the system.
+-spec list_watches() -> {ok, [term()]}.
+list_watches() ->
+    gen_server:call(?MODULE, list).
 
 %% @doc Add a watch to the system. This will persist the watch into the
 %% backing storage. If the watch already exists then this will update it,
@@ -69,6 +78,9 @@ handle_call({delete, Name}, _From, State) ->
 handle_call({get, Name}, _From, State) ->
     lager:info("Getting watch: ~p~n", [Name]),
     {reply, internal_get_watch(Name), State};
+handle_call(list, _From, State) ->
+    lager:info("Listing watches~n"),
+    {reply, {ok, internal_list_watches()}, State};
 handle_call({set, Watch}, _From, State) when is_record(Watch, watch) ->
     lager:info("Setting watch: ~p~n", [Watch#watch.name]),
     {reply, internal_set_watch(Watch), State}.
@@ -96,6 +108,9 @@ internal_get_watch(Name) ->
         [{Name, Watch}] -> {ok, Watch}
     end.
 
+internal_list_watches() ->
+    dets:foldl(fun(X, Acc) -> [X | Acc] end, [], ?TABLE_NAME).
+
 internal_set_watch(#watch{name=Name} = Watch) ->
     dets:insert(?TABLE_NAME, {Name, Watch});
 internal_set_watch(_) ->
@@ -115,6 +130,8 @@ main_test_() ->
             fun test_delete_watch/1,
             fun test_delete_watch_nonexistent/1,
             fun test_get_watch_nonexistent/1,
+            fun test_list_watch_empty/1,
+            fun test_list_watch/1,
             fun test_set_watch_invalid/1,
             fun test_set_and_get_watch/1,
             fun test_update_watch/1
@@ -149,6 +166,20 @@ test_delete_watch_nonexistent(_) ->
 test_get_watch_nonexistent(_) ->
     fun() ->
             {error, no_watch} = internal_get_watch("no good")
+    end.
+
+test_list_watch_empty(_) ->
+    fun() ->
+            [] = internal_list_watches()
+    end.
+
+test_list_watch(_) ->
+    fun() ->
+            Watch = #watch{code="baz"},
+            ok = internal_set_watch(Watch#watch{name="foo"}),
+            ok = internal_set_watch(Watch#watch{name="bar"}),
+            Result = internal_list_watches(),
+            ?assert(length(Result) =:= 2)
     end.
 
 test_set_watch_invalid(_) ->
