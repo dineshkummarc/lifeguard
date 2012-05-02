@@ -23,7 +23,9 @@ malformed_request(ReqData, Context) ->
     DSName = wrq:path_info(name, ReqData),
     DSArgs = case wrq:get_qs_value("args", ReqData) of
         undefined -> [];
-        RawArgs   -> mochijson2:decode(RawArgs)
+        RawArgs   ->
+            io:format("RAW DATA: ~p~n", [RawArgs]),
+            mochijson2:decode(RawArgs)
     end,
 
     case DSArgs of
