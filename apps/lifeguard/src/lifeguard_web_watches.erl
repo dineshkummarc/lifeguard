@@ -4,6 +4,7 @@
          create_path/2,
          content_types_accepted/2,
          content_types_provided/2,
+         get_watches/2,
          malformed_request/2,
          post_is_create/2,
          put_watch/2]).
@@ -26,6 +27,11 @@ allowed_methods(ReqData, Context) ->
     {Methods, ReqData, Context}.
 
 malformed_request(ReqData, Context) ->
+    malformed_request_by_method(ReqData, Context, wrq:method(ReqData)).
+
+malformed_request_by_method(ReqData, Context, 'GET') ->
+    {false, ReqData, Context};
+malformed_request_by_method(ReqData, Context, _) ->
     ReqBody = wrq:req_body(ReqData),
     try mochijson2:decode(ReqBody) of
         {struct, Struct} ->
@@ -66,6 +72,12 @@ content_types_accepted(ReqData, Context) ->
     Handlers = [{"application/json", put_watch}],
     {Handlers, ReqData, Context}.
 
+get_watches(ReqData, Context) ->
+    {ok, Watches} = lifeguard_watch_manager:list_watches(),
+    JSONStruct    = struct_from_list(Watches),
+    JSON          = mochijson2:encode(JSONStruct),
+    {list_to_binary(JSON), ReqData, Context}.
+
 put_watch(ReqData, Context) ->
     Data = Context#state.watch_data,
     {name, Name} = proplists:lookup(name, Data),
@@ -77,6 +89,19 @@ put_watch(ReqData, Context) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Internal methods
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+struct_from_list(Watches) ->
+    StructList = struct_from_list1(Watches, []),
+    {struct, [{watches, StructList}]}.
+
+struct_from_list1([], Acc) ->
+    Acc;
+struct_from_list1([Watch | Rest], Acc) ->
+    {Name, Code, Interval} = Watch,
+    Struct = [{name, Name},
+              {code, Code},
+              {interval, Interval}],
+    struct_from_list1(Rest, [Struct | Acc]).
 
 validate_struct(Struct) ->
     % The "P" variables are the proplist, the "E" variables are

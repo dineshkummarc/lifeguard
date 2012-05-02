@@ -31,7 +31,12 @@ delete_watch(Name) ->
 %% @doc Lists all the watches in the system.
 -spec list_watches() -> {ok, [term()]}.
 list_watches() ->
-    gen_server:call(?MODULE, list).
+    case gen_server:call(?MODULE, list) of
+        {ok, Watches} ->
+            {ok, record_to_external(Watches)};
+        Other ->
+            Other
+    end.
 
 %% @doc Add a watch to the system. This will persist the watch into the
 %% backing storage. If the watch already exists then this will update it,
@@ -109,12 +114,24 @@ internal_get_watch(Name) ->
     end.
 
 internal_list_watches() ->
-    dets:foldl(fun(X, Acc) -> [X | Acc] end, [], ?TABLE_NAME).
+    dets:foldl(fun(X, Acc) ->
+                {_Name, Data} = X,
+                [Data | Acc]
+        end, [], ?TABLE_NAME).
 
 internal_set_watch(#watch{name=Name} = Watch) ->
     dets:insert(?TABLE_NAME, {Name, Watch});
 internal_set_watch(_) ->
     {error, invalid_watch}.
+
+record_to_external(Watches) ->
+    record_to_external1(Watches, []).
+
+record_to_external1([], Acc) ->
+    Acc;
+record_to_external1([Watch | Rest], Acc) ->
+    Single = {Watch#watch.name, Watch#watch.code, Watch#watch.interval},
+    record_to_external1(Rest, [Single | Acc]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Tests for internal methods
@@ -131,7 +148,8 @@ main_test_() ->
             fun test_delete_watch_nonexistent/1,
             fun test_get_watch_nonexistent/1,
             fun test_list_watch_empty/1,
-            fun test_list_watch/1,
+            fun test_list_watch_single/1,
+            fun test_record_to_external_list/1,
             fun test_set_watch_invalid/1,
             fun test_set_and_get_watch/1,
             fun test_update_watch/1
@@ -173,13 +191,22 @@ test_list_watch_empty(_) ->
             [] = internal_list_watches()
     end.
 
-test_list_watch(_) ->
+test_list_watch_single(_) ->
     fun() ->
-            Watch = #watch{code="baz"},
-            ok = internal_set_watch(Watch#watch{name="foo"}),
-            ok = internal_set_watch(Watch#watch{name="bar"}),
-            Result = internal_list_watches(),
-            ?assert(length(Result) =:= 2)
+            Watch = #watch{name="foo", code="baz", interval=5},
+            ok = internal_set_watch(Watch),
+            [Result] = internal_list_watches(),
+            Watch = Result
+    end.
+
+test_record_to_external_list(_) ->
+    fun() ->
+            % Test the single case
+            [] = record_to_external([]),
+
+            % Test when we have a watch
+            Watch1  = #watch{name="foo", code="bar", interval=1},
+            [{"foo", "bar", 1}] = record_to_external([Watch1])
     end.
 
 test_set_watch_invalid(_) ->
