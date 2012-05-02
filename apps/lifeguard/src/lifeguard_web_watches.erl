@@ -32,9 +32,12 @@ malformed_request(ReqData, Context) ->
             case validate_struct(Struct) of
                 {ok, WatchData} ->
                     {false, ReqData, Context#state{watch_data=WatchData}};
-                {error, _Errors} ->
-                    Response = wrq:set_resp_body(<<"Errors">>, ReqData),
-                    {true, Response, Context}
+                {error, Errors} ->
+                    JSONStruct = {struct, [{errors, Errors}]},
+                    JSONString = list_to_binary(mochijson2:encode(JSONStruct)),
+                    Response  = wrq:set_resp_body(JSONString, ReqData),
+                    Response1 = wrq:set_resp_header("Content-Type", "application/json", Response),
+                    {true, Response1, Context}
             end;
         _ ->
             Response = wrq:set_resp_body(<<"Content must be a JSON object.">>, ReqData),
@@ -50,7 +53,10 @@ post_is_create(ReqData, Context) ->
     {true, ReqData, Context}.
 
 create_path(ReqData, Context) ->
-    {"", ReqData, Context}.
+    {name, Name} = proplists:lookup(name, Context#state.watch_data),
+    BinaryPath   = <<"/api/data-sources/", Name/binary>>,
+    Path         = binary_to_list(BinaryPath),
+    {Path, ReqData, Context}.
 
 content_types_provided(ReqData, Context) ->
     Handlers = [{"application/json", get_watches}],
@@ -61,7 +67,12 @@ content_types_accepted(ReqData, Context) ->
     {Handlers, ReqData, Context}.
 
 put_watch(ReqData, Context) ->
-    {"test", ReqData, Context}.
+    Data = Context#state.watch_data,
+    {name, Name} = proplists:lookup(name, Data),
+    {code, Code} = proplists:lookup(code, Data),
+    {interval, Interval} = proplists:lookup(interval, Data),
+    ok = lifeguard_watch_manager:set_watch(Name, Code, Interval),
+    {true, ReqData, Context}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Internal methods
@@ -102,8 +113,10 @@ validate_interval(Struct, P, E) ->
     case json_get_key(<<"interval">>, Struct) of
         undefined ->
             {P, [<<"'interval' is required">> | E]};
-        Value ->
-            {[{interval, Value} | P], E}
+        Value when is_integer(Value) ->
+            {[{interval, Value} | P], E};
+        _ ->
+            {P, [<<"'interval' must be an integer">> | E]}
     end.
 
 json_get_key(_Key, []) ->
@@ -147,8 +160,13 @@ validate_code_bad_test() ->
     ?assert(length(Errors) > 0).
 
 validate_interval_ok_test() ->
+    Struct = [{<<"interval">>, 27}],
+    {[{interval, 27}], []} = validate_interval(Struct, [], []).
+
+validate_interval_bad_not_integer_test() ->
     Struct = [{<<"interval">>, <<"bar">>}],
-    {[{interval, <<"bar">>}], []} = validate_interval(Struct, [], []).
+    {[], Errors} = validate_interval(Struct, [], []),
+    ?assert(length(Errors) > 0).
 
 validate_interval_bad_test() ->
     Struct = [{<<"nope">>, <<"bar">>}],
