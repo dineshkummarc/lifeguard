@@ -1,16 +1,23 @@
+%% @doc This module implements the RESTful interface for Watches. This
+%% handles creating, reading, updating, and deleting.
+
 -module(lifeguard_web_watches).
 -export([init/1,
          allowed_methods/2,
          create_path/2,
          content_types_accepted/2,
          content_types_provided/2,
+         get_watch/2,
          get_watches/2,
          malformed_request/2,
          post_is_create/2,
-         put_watch/2]).
+         put_watch/2,
+         resource_exists/2]).
 
 -record(state, {
-        watch_data % A proplist of the watch data
+        watch_name, % The name of the watch being modified, if being modified
+        watch_data, % A proplist of the watch data
+        watch_old_data % The old data associated with a Watch
         }).
 
 -include_lib("webmachine/include/webmachine.hrl").
@@ -20,11 +27,21 @@
 -endif.
 
 init(_) ->
-    {ok, #state{}}.
+    {ok, #state{watch_name=undefined}}.
 
 allowed_methods(ReqData, Context) ->
-    Methods = ['GET', 'POST'],
-    {Methods, ReqData, Context}.
+    % If we're given a name in the path, then we support modifying and
+    % all the things. Otherwise, we only support listing and creating.
+    case wrq:path_info(name, ReqData) of
+        undefined ->
+            Methods = ['GET', 'POST', 'PUT'],
+            {Methods, ReqData, Context};
+        Name ->
+            BinName = list_to_binary(Name),
+            Methods = ['GET', 'POST', 'PUT', 'DELETE'],
+            State   = Context#state{watch_name=BinName},
+            {Methods, ReqData, State}
+    end.
 
 malformed_request(ReqData, Context) ->
     malformed_request_by_method(ReqData, Context, wrq:method(ReqData)).
@@ -55,6 +72,19 @@ malformed_request_by_method(ReqData, Context, _) ->
             {true, Response, Context}
     end.
 
+resource_exists(ReqData, #state{watch_name=Name} = Context) when Name =/= undefined ->
+    % If we're working with a specific watch, then we need to verify
+    % that it actually exists.
+    case lifeguard_watch_manager:get_watch(Name) of
+        {ok, Watch} ->
+            State = Context#state{watch_old_data=Watch},
+            {true, ReqData, State};
+        {error, no_watch} ->
+            {false, ReqData, Context}
+    end;
+resource_exists(ReqData, Context) ->
+    {true, ReqData, Context}.
+
 post_is_create(ReqData, Context) ->
     {true, ReqData, Context}.
 
@@ -64,20 +94,34 @@ create_path(ReqData, Context) ->
     Path         = binary_to_list(BinaryPath),
     {Path, ReqData, Context}.
 
-content_types_provided(ReqData, Context) ->
-    Handlers = [{"application/json", get_watches}],
+content_types_provided(ReqData, #state{watch_name=Name} = Context) ->
+    Handler = case Name of
+        undefined ->
+            get_watches;
+        _ ->
+            get_watch
+    end,
+    Handlers = [{"application/json", Handler}],
     {Handlers, ReqData, Context}.
 
 content_types_accepted(ReqData, Context) ->
     Handlers = [{"application/json", put_watch}],
     {Handlers, ReqData, Context}.
 
+%% @doc Gets a single watch and returns a JSON object associated with it.
+get_watch(ReqData, #state{watch_old_data=Watch} = Context) ->
+    JSONStruct = struct_from_watch(Watch),
+    JSON       = mochijson2:encode(JSONStruct),
+    {list_to_binary(JSON), ReqData, Context}.
+
+%% @doc Handler that renders a JSON object of every watch.
 get_watches(ReqData, Context) ->
     {ok, Watches} = lifeguard_watch_manager:list_watches(),
     JSONStruct    = struct_from_list(Watches),
     JSON          = mochijson2:encode(JSONStruct),
     {list_to_binary(JSON), ReqData, Context}.
 
+%% @doc Handler that updates an existing watch.
 put_watch(ReqData, Context) ->
     Data = Context#state.watch_data,
     {name, Name} = proplists:lookup(name, Data),
@@ -97,11 +141,17 @@ struct_from_list(Watches) ->
 struct_from_list1([], Acc) ->
     Acc;
 struct_from_list1([Watch | Rest], Acc) ->
-    {Name, Code, Interval} = Watch,
-    Struct = [{name, Name},
-              {code, Code},
-              {interval, Interval}],
+    Struct = struct_members_for_watch(Watch),
     struct_from_list1(Rest, [Struct | Acc]).
+
+struct_from_watch(Watch) ->
+    {struct, struct_members_for_watch(Watch)}.
+
+struct_members_for_watch(Watch) ->
+    {Name, Code, Interval} = Watch,
+    [{name, Name},
+     {code, Code},
+     {interval, Interval}].
 
 validate_struct(Struct) ->
     % The "P" variables are the proplist, the "E" variables are
