@@ -310,7 +310,11 @@
             data: data,
             emulation: emulation,
             onSuccess: function(responseText){
-                params.success(JSON.parse(responseText));
+                var result = {};
+                if (responseText != "")
+                    result = JSON.parse(responseText);
+
+                params.success(result);
             },
             onFailure: params.error,
             headers: { 'Content-Type': params.contentType },
