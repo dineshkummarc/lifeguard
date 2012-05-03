@@ -1,5 +1,6 @@
 var Watch = Backbone.Model.extend({
     idAttribute: "name",
+    urlRoot: "/api/watches",
 
     defaults: {
         "name": "<unknown>",
@@ -62,6 +63,7 @@ var WatchListView = Backbone.View.extend({
         this.table      = this.$("table.watches")[0];
         this.no_watches = this.$(".no-watches")[0];
 
+        this.collection.on("add", this.addOne, this);
         this.collection.on("reset", this.addAll, this);
         this.collection.on("all", this.render, this);
 
@@ -107,14 +109,19 @@ var WatchNewView = Backbone.View.extend({
     template: null,
 
     events: {
-        "click .cancel": "cancel"
+        "click .cancel": "cancel",
+        "click .save": "save"
     },
 
     initialize: function() {
         if (!WatchNewView.template) {
             var templateEl = document.id("watch-new-template");
-            var template   = _.template(templateEl.get("html"));
+            var template   = _.template(templateEl.get("html"));;
             WatchNewView.prototype.template = template;
+
+            var errorTemplateEl = document.id("watch-new-errors-template");
+            var errorTemplate = _.template(errorTemplateEl.get("html"));
+            WatchNewView.prototype.errorTemplate = errorTemplate;
         }
 
         this.rendered = false;
@@ -123,11 +130,15 @@ var WatchNewView = Backbone.View.extend({
 
     render: function() {
         if (!this.rendered) {
+            // Render and mark as rendered
             this.$el.html(this.template());
-
-            // Mark that we rendered so that we don't do it again
             this.rendered = true;
 
+            // Get some of the common elements
+            this.save_button = this.el.getElement(".save");
+        }
+
+        if (this.editor === null) {
             // Setup the code editor
             var editor  = window.ace.edit("editor");
             var session = editor.getSession();
@@ -155,6 +166,44 @@ var WatchNewView = Backbone.View.extend({
     cancel: function(event) {
         event.preventDefault();
         this.trigger("cancel");
+    },
+
+    save: function(event) {
+        event.preventDefault();
+
+        // Disable the save button
+        this.save_button.addClass("disabled");
+
+        // Create a new watch
+        var watch = new Watch({
+            name: this.el.getElementById("name").value,
+            interval: parseInt(this.el.getElementById("interval").value, 10),
+            code: this.editor.getSession().getValue()
+        });
+
+        // Save it
+        watch.save(null, {
+            success: _.bind(this.saveSuccess, this),
+            error: _.bind(this.saveError, this)
+        });
+    },
+
+    saveError: function(model, response) {
+        // Parse the errors and show the message
+        var json      = JSON.parse(response.responseText);
+        var errorHtml = this.errorTemplate({ errors: json.errors });
+        this.el.getElementById("errors").set("html", errorHtml);
+
+        // Re-enable the save button
+        this.save_button.removeClass("disabled");
+    },
+
+    saveSuccess: function(model, response) {
+        // Add the model to our collection
+        this.collection.add(model);
+
+        // Trigger an event to get us out of here
+        this.trigger("saveComplete");
     }
 });
 
@@ -198,6 +247,10 @@ var WatchRouter = Backbone.Router.extend({
         // Create the new view
         var view = new WatchNewView({ collection: this.collection });
         view.on("cancel", function() {
+            this.navigate("watches", { trigger: true });
+        }, this);
+
+        view.on("saveComplete", function() {
             this.navigate("watches", { trigger: true });
         }, this);
 

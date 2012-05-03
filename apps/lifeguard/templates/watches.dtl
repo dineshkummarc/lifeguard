@@ -42,7 +42,7 @@
 {% endblock %}
 
 {% block js_templates %}
-<script type="text/template" id="watch-template">
+<script type="text/html" id="watch-template">
 <tr>
 	<td><%= name %></td>
 	<td><%= interval %></td>
@@ -52,7 +52,7 @@
 </tr>
 </script>
 
-<script type="text/template" id="watch-new-template">
+<script type="text/html" id="watch-new-template">
 <div class="Module page" id="watches-new">
     <div class="page-header">
         <div class="row">
@@ -78,6 +78,9 @@
     Fill in the form below to add a new watch.
     </p>
 
+    <div id="errors">
+    </div>
+
     <form class="well">
         <label for="name">Name</label>
         <input type="text" id="name" name="name" class="span3">
@@ -92,6 +95,20 @@
     // Your code here!
 });</div>
     </form>
+</div>
+</script>
+
+<script type="text/html" id="watch-new-errors-template">
+<div class="alert alert-error">
+<p>
+    <strong>The watch couldn't be saved. Some errors occurred:</strong>
+</p>
+
+<ul>
+<% _.each(errors, function(error) { %>
+<li><%= error %></li>
+<% }); %>
+<ul>
 </div>
 </script>
 {% endblock %}
