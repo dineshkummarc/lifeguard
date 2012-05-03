@@ -1,10 +1,20 @@
 {% extends "base.dtl" %}
 
 {% block body %}
-<div class="container">
-	<div class="Module page" id="app-watches">
+<div class="container" id="view-container">
+	<div class="Module page" id="watches-list" style="display: none">
 		<div class="page-header">
-			<h1>Watches</h1>
+			<div class="row">
+				<div class="span6">
+					<h1>Watches</h1>
+				</div>
+				<div class="span6">
+					<a href="#" class="btn btn-primary pull-right new">
+						<i class="icon-plus icon-white"></i>
+						New Watch
+					</a>
+				</div>
+			</div>
 		</div>
 
 		<p>
@@ -41,10 +51,56 @@
 	</td>
 </tr>
 </script>
+
+<script type="text/template" id="watch-new-template">
+<div class="Module page" id="watches-new">
+    <div class="page-header">
+        <div class="row">
+            <div class="span6">
+                <h1>New Watch</h1>
+            </div>
+            <div class="span6">
+                <div class="pull-right">
+                    <a href="#" class="btn btn-primary save">
+                        <i class="icon-ok icon-white"></i>
+                        Save
+                    </a>
+
+                    <a href="#" class="btn cancel">
+                        Cancel
+                    </a>
+               </div>
+             </div>
+        </div>
+    </div>
+
+    <p>
+    Fill in the form below to add a new watch.
+    </p>
+
+    <form class="well">
+        <label for="name">Name</label>
+        <input type="text" id="name" name="name" class="span3">
+        <span class="help-block">This name must be a unique identifier for the watch.</span>
+
+        <label for="interval">Interval</label>
+        <input type="text" name="interval" id="interval" value="5000" class="span3">
+        <span class="help-block">The interval that this watch runs in milliseconds.</span>
+
+        <label>Code</label>
+        <div id="editor">Lifeguard.register(function() {
+    // Your code here!
+});</div>
+    </form>
+</div>
+</script>
 {% endblock %}
 
 {% block body_footer %}
+<script type="text/javascript" src="/static/js/ace/ace.js"></script>
+<script type="text/javascript" src="/static/js/ace/mode-javascript.js"></script>
+<script type="text/javascript" src="/static/js/ace/theme-merbivore.js"></script>
 <script type="text/javascript">
-var AppView = new WatchAppView({ collection: new Watches });
+new WatchRouter();
 </script>
 {% endblock %}

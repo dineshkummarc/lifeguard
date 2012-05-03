@@ -25,9 +25,9 @@ resource_exists(ReqData, Context) ->
     % "filters/new" turns into "filters_new." Finally, "_dtl" is
     % appended onto the end of the module name since that is how it is
     % compiled.
-    Path       = case wrq:disp_path(ReqData) of
-        ""    -> "index";
-        Other -> Other
+    Path       = case wrq:path_tokens(ReqData) of
+        List when length(List) =:= 0 -> "index";
+        [Main | _Rest] -> Main
     end,
     Module = path_to_tpl_module(Path),
 

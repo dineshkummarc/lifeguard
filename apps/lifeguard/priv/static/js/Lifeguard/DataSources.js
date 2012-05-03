@@ -67,9 +67,7 @@ var DataSourceView = Backbone.View.extend({
         return this;
     },
 
-    testGet: function(raw_event) {
-        // Wrap up the event in a Moo object and prevent default behavior
-        var event = new DOMEvent(raw_event);
+    testGet: function(event) {
         event.preventDefault();
 
         // Get the arguments

@@ -29,11 +29,16 @@
 		<script src="/static/js/mootools-core-1.4.5.js"></script>
 		<script src="/static/js/MooToolsAdapter.js"></script>
 		<script src="/static/js/underscore-min.js"></script>
-		<script src="/static/js/backbone-min.js"></script>
+		<script src="/static/js/backbone.js"></script>
 
 		<script src="/static/js/dbg.js"></script>
 		<script src="/static/js/Lifeguard/DataSources.js"></script>
 		<script src="/static/js/Lifeguard/Watches.js"></script>
 		{% block body_footer %}{% endblock %}
+
+		<script type="text/javascript">
+			dbg.info("Starting Backbone history observer...");
+			Backbone.history.start({ pushState: true });
+		</script>
 	</body>
 </html>

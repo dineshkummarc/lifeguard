@@ -45,7 +45,14 @@ ul#data-sources-list, ul#data-sources-list li {
     width: 100%;
 }
 
-#app-watches table.watches .no-watches td {
+#editor {
+    position: relative;
+    width: 890px;
+    height: 300px;
+    border: 1px solid #CCC;
+}
+
+#watches-list table.watches .no-watches td {
     text-align: center;
 }
 
