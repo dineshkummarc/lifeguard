@@ -183,6 +183,8 @@ validate_name(Struct, P, E) ->
     case lists:keyfind(Key, 1, Struct) of
         false ->
             {P, [<<"'name' is required">> | E]};
+        {_Key, Value} when size(Value) =:= 0 ->
+            {P, [<<"'name' must be non-empty">> | E]};
         {Key, Value} ->
             {[{name, Value} | P], E}
     end.
@@ -228,6 +230,11 @@ validate_name_ok_test() ->
 
 validate_name_bad_test() ->
     Struct = [{<<"nope">>, <<"bar">>}],
+    {[], Errors} = validate_name(Struct, [], []),
+    ?assert(length(Errors) > 0).
+
+validate_name_empty_bad_test() ->
+    Struct = [{<<"name">>, <<"">>}],
     {[], Errors} = validate_name(Struct, [], []),
     ?assert(length(Errors) > 0).
 
