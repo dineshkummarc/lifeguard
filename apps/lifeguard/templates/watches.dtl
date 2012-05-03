@@ -2,7 +2,7 @@
 
 {% block body %}
 <div class="container">
-	<div class="Module page" id="watches">
+	<div class="Module page" id="app-watches">
 		<div class="page-header">
 			<h1>Watches</h1>
 		</div>
@@ -11,7 +11,7 @@
 		Below is a list of the configured watches.
 		</p>
 
-		<table class="table">
+		<table class="table table-striped watches">
 			<thead>
 				<tr>
 					<th>Name</th>
@@ -19,7 +19,32 @@
 					<th>Options</th>
 				</tr>
 			</thead>
+			<tbody class="no-watches">
+				<tr>
+					<td colspan="3">
+						<strong>No watches have been created yet!</strong>
+					</td>
+				</tr>
+			</tbody>
 		</table>
 	</div>
 </div>
+{% endblock %}
+
+{% block js_templates %}
+<script type="text/template" id="watch-template">
+<tr>
+	<td><%= name %></td>
+	<td><%= interval %></td>
+	<td>
+		<a href="#" class="btn btn-mini delete">Delete</a>
+	</td>
+</tr>
+</script>
+{% endblock %}
+
+{% block body_footer %}
+<script type="text/javascript">
+var AppView = new WatchAppView({ collection: new Watches });
+</script>
 {% endblock %}

@@ -43,7 +43,7 @@ var DataSources = Backbone.Collection.extend({
 
 var DataSourceView = Backbone.View.extend({
     tagName: "li",
-    template: _.template(document.id("data-source-template").get("html")),
+    template: null,
 
     events: {
         "click .name": "toggleConsole",
@@ -51,6 +51,12 @@ var DataSourceView = Backbone.View.extend({
     },
 
     initialize: function() {
+        if (!DataSourceView.template) {
+            var templateEl = document.id("data-source-template");
+            var template   = _.template(templateEl.get("html"));
+            DataSourceView.prototype.template = template;
+        }
+
         this.model.on("change", this.render, this);
         this.model.on("destroy", this.remove, this);
     },

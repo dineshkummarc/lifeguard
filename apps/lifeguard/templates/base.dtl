@@ -33,6 +33,7 @@
 
 		<script src="/static/js/dbg.js"></script>
 		<script src="/static/js/Lifeguard/DataSources.js"></script>
+		<script src="/static/js/Lifeguard/Watches.js"></script>
 		{% block body_footer %}{% endblock %}
 	</body>
 </html>

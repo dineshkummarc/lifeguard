@@ -113,7 +113,10 @@ content_types_accepted(ReqData, Context) ->
 
 delete_resource(ReqData, #state{watch_name=Name} = Context) ->
     ok = lifeguard_watch_manager:delete_watch(Name),
-    {true, ReqData, Context}.
+    JSONStruct = {struct, [{success, <<"true">>}]},
+    JSON     = list_to_binary(mochijson2:encode(JSONStruct)),
+    Response = wrq:set_resp_body(JSON, ReqData),
+    {true, Response, Context}.
 
 %% @doc Gets a single watch and returns a JSON object associated with it.
 get_watch(ReqData, #state{watch_old_data=Watch} = Context) ->

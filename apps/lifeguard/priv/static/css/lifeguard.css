@@ -45,6 +45,10 @@ ul#data-sources-list, ul#data-sources-list li {
     width: 100%;
 }
 
+#app-watches table.watches .no-watches td {
+    text-align: center;
+}
+
 /* Modules */
 .Module.dashboard {
     padding: 10px;
