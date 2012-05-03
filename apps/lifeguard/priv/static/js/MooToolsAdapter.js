@@ -313,7 +313,8 @@
                 params.success(JSON.parse(responseText));
             },
             onFailure: params.error,
-            headers: { 'Content-Type': params.contentType }
+            headers: { 'Content-Type': params.contentType },
+            urlEncoded: false
         };
 
         new Request(parameters).send();
