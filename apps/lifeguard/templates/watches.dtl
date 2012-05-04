@@ -48,7 +48,14 @@
 <td><%= name %></td>
 <td><%= interval %></td>
 <td>
-  <a href="#" class="btn btn-mini delete">Delete</a>
+  <a href="#" class="btn btn-mini edit">
+    <i class="icon-wrench"></i>
+    Edit
+  </a>
+  <a href="#" class="btn btn-mini delete">
+    <i class="icon-trash"></i>
+    Delete
+  </a>
 </td>
 </script>
 
@@ -73,10 +80,6 @@
              </div>
         </div>
     </div>
-
-    <p>
-    Fill in the form below to add a new watch.
-    </p>
 
     <div id="errors">
     </div>

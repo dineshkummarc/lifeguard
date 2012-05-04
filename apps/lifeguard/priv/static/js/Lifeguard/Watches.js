@@ -23,6 +23,7 @@ var WatchView = Backbone.View.extend({
     template: null,
 
     events: {
+        "click .edit": "edit",
         "click .delete": "delete"
     },
 
@@ -37,13 +38,19 @@ var WatchView = Backbone.View.extend({
         this.model.on("destroy", this.remove, this);
     },
 
+    edit: function(event) {
+        event.preventDefault();
+        this.trigger("editWatch", this.model);
+    },
+
     delete: function(event) {
-        // Use MooTools to stop the default
         event.preventDefault();
 
         // Delete it!
-        dbg.info("Deleting model: " + this.model.get("name"));
-        this.model.destroy();
+        if (window.confirm("Are you sure? Deletes are final.")) {
+            dbg.info("Deleting model: " + this.model.get("name"));
+            this.model.destroy();
+        }
     },
 
     render: function() {
@@ -56,7 +63,7 @@ var WatchListView = Backbone.View.extend({
     el: document.id("watches-list"),
 
     events: {
-        "click .new": "newWatch"
+        "click .new":  "newWatch"
     },
 
     initialize: function() {
@@ -85,7 +92,13 @@ var WatchListView = Backbone.View.extend({
     },
 
     addOne: function(watch) {
+        // Create the view and attach any relevant event listeners
         var view = new WatchView({ model: watch });
+        view.on("editWatch", function(watch) {
+            this.trigger("editWatch", watch);
+        }, this);
+
+        // Render the view and put it in our table
         var el   = view.render().el;
         el.inject(this.table);
     },
@@ -104,7 +117,7 @@ var WatchListView = Backbone.View.extend({
     }
 });
 
-var WatchNewView = Backbone.View.extend({
+var WatchFormView = Backbone.View.extend({
     tagName: "div",
     template: null,
 
@@ -114,15 +127,22 @@ var WatchNewView = Backbone.View.extend({
     },
 
     initialize: function() {
-        if (!WatchNewView.template) {
+        if (!WatchFormView.template) {
             var templateEl = document.id("watch-new-template");
             var template   = _.template(templateEl.get("html"));;
-            WatchNewView.prototype.template = template;
+            WatchFormView.prototype.template = template;
 
             var errorTemplateEl = document.id("watch-new-errors-template");
             var errorTemplate = _.template(errorTemplateEl.get("html"));
-            WatchNewView.prototype.errorTemplate = errorTemplate;
+            WatchFormView.prototype.errorTemplate = errorTemplate;
         }
+
+        // If we're given a model, then we're modifying an existing
+        // Watch. Otherwise, we're creating a new one.
+        if (this.model)
+            this.isNew = false;
+        else
+            this.isNew = true;
 
         this.rendered = false;
         this.editor = null;
@@ -136,7 +156,7 @@ var WatchNewView = Backbone.View.extend({
 
             // Get some of the common elements
             this.save_button = this.el.getElement(".save");
-        }
+       }
 
         if (this.editor === null) {
             // Setup the code editor
@@ -160,12 +180,23 @@ var WatchNewView = Backbone.View.extend({
             session.setMode(new JavaScriptMode());
         }
 
+        if (!this.isNew) {
+            // Since we're modifying an existing model, update all
+            // the form values with the model data
+            this.el.getElementById("name").value = this.model.get("name");
+            this.el.getElementById("interval").value = this.model.get("interval");
+            this.editor.getSession().setValue(this.model.get("code"));
+        }
+
         return this;
     },
 
     cancel: function(event) {
         event.preventDefault();
-        this.trigger("cancel");
+
+        if (window.confirm("Are you sure? Your changes will be lost.")) {
+            this.trigger("cancel");
+        }
     },
 
     save: function(event) {
@@ -174,8 +205,12 @@ var WatchNewView = Backbone.View.extend({
         // Disable the save button
         this.save_button.addClass("disabled");
 
-        // Create a new watch
-        var watch = new Watch({
+        var watch = this.model;
+        if (this.isNew)
+            watch = new Watch();
+
+        // Set the attributes
+        watch.set({
             name: this.el.getElementById("name").value,
             interval: parseInt(this.el.getElementById("interval").value, 10),
             code: this.editor.getSession().getValue()
@@ -199,8 +234,10 @@ var WatchNewView = Backbone.View.extend({
     },
 
     saveSuccess: function(model, response) {
-        // Add the model to our collection
-        this.collection.add(model);
+        if (this.isNew) {
+            // Add the model to our collection
+            this.collection.add(model);
+        }
 
         // Trigger an event to get us out of here
         this.trigger("saveComplete");
@@ -210,15 +247,19 @@ var WatchNewView = Backbone.View.extend({
 var WatchRouter = Backbone.Router.extend({
     routes: {
         "watches":      "listWatches",
-        "watches/new":  "newWatch"
+        "watches/new":  "newWatch",
+        "watches/edit/:id": "editWatch"
     },
 
     initialize: function() {
         // Get the main container that stores the active view
         this.container = document.id("view-container");
 
-        // This contains a cache of the views
+        // This is the collection of Watches used by the main list view
         this.collection = new Watches();
+
+        // This is a collection of watches that are used only internally
+        this.internal_collection = new Watches();
 
         // This is the main list view, which is always around but sometimes
         // hidden. This gets created initially in listWatches.
@@ -226,6 +267,31 @@ var WatchRouter = Backbone.Router.extend({
 
         // This is the current view showing
         this.current_view = null;
+    },
+
+    editWatch: function(id) {
+        var watch = this.collection.get(id);
+        if (!watch) {
+            // Attempt to load it from the internal collection...
+            watch = this.internal_collection.get(id);
+        }
+
+        // If we don't have it in the collection, attempt to fetch from
+        // the server.
+        if (!watch) {
+            dbg.info("Model not found, attempting to fetch from server...");
+            watch = new Watch({ name: id });
+            watch.fetch({
+                success: _.bind(function(model, response) {
+                    this.internal_collection.add(model);
+                    Backbone.history.loadUrl();
+                }, this)
+            });
+            return;
+        }
+
+        // Otherwise show the form
+        this._watchForm({ model: watch });
     },
 
     listWatches: function() {
@@ -237,6 +303,15 @@ var WatchRouter = Backbone.Router.extend({
             this.list_view.on("newWatch", function() {
                 this.navigate("watches/new", { trigger: true });
             }, this);
+
+            this.list_view.on("editWatch", function(watch) {
+                // We reset the internal collection here as some bookkeeping
+                // to avoid just growing this unbounded
+                this.internal_collection.reset();
+
+                // Navigate to the edit page
+                this.navigate("watches/edit/" + watch.id, { trigger: true });
+            }, this);
         }
 
         // Show it!
@@ -244,22 +319,7 @@ var WatchRouter = Backbone.Router.extend({
     },
 
     newWatch: function() {
-        // Create the new view
-        var view = new WatchNewView({ collection: this.collection });
-        view.on("cancel", function() {
-            this.navigate("watches", { trigger: true });
-        }, this);
-
-        view.on("saveComplete", function() {
-            this.navigate("watches", { trigger: true });
-        }, this);
-
-        // Swap in our new view
-        this._setView(view);
-
-        // Render. Note that this MUST be called after _setView because
-        // the ACE editor requires the elements to be visible.
-        view.render();
+        this._watchForm({ collection: this.collection });
     },
 
     _setView: function(view) {
@@ -282,5 +342,24 @@ var WatchRouter = Backbone.Router.extend({
 
         this.container.grab(view.el);
         this.current_view = view;
+    },
+
+    _watchForm: function(options) {
+        // Create the new view
+        var view = new WatchFormView(options);
+        view.on("cancel", function() {
+            this.navigate("watches", { trigger: true });
+        }, this);
+
+        view.on("saveComplete", function() {
+            this.navigate("watches", { trigger: true });
+        }, this);
+
+        // Swap in our new view
+        this._setView(view);
+
+        // Render. Note that this MUST be called after _setView because
+        // the ACE editor requires the elements to be visible.
+        view.render();
     }
 });
