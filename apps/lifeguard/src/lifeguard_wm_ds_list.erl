@@ -1,4 +1,4 @@
--module(lifeguard_web_ds_list).
+-module(lifeguard_wm_ds_list).
 -export([init/1,
          content_types_provided/2,
          to_json/2]).

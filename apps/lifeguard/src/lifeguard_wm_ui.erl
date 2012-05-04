@@ -1,4 +1,4 @@
--module(lifeguard_web_ui).
+-module(lifeguard_wm_ui).
 -export([init/1,
          resource_exists/2,
          to_html/2]).

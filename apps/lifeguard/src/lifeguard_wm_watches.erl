@@ -1,7 +1,7 @@
 %% @doc This module implements the RESTful interface for Watches. This
 %% handles creating, reading, updating, and deleting.
 
--module(lifeguard_web_watches).
+-module(lifeguard_wm_watches).
 -export([init/1,
          allowed_methods/2,
          create_path/2,

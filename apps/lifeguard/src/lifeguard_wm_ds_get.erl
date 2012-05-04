@@ -1,4 +1,4 @@
--module(lifeguard_web_ds_get).
+-module(lifeguard_wm_ds_get).
 -export([init/1,
          content_types_provided/2,
          malformed_request/2,

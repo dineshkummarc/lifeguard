@@ -2,7 +2,7 @@
 %% works by simply finding the files in the "static" folder in the priv
 %% directory, and serves it.
 
--module(lifeguard_web_static).
+-module(lifeguard_wm_static).
 -export([init/1,
          allowed_methods/2,
          content_types_provided/2,
