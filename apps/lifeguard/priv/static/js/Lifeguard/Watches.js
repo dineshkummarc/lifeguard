@@ -67,8 +67,15 @@ var WatchListView = Backbone.View.extend({
     },
 
     initialize: function() {
-        this.table      = this.$("table.watches tbody.watches")[0];
-        this.no_watches = this.$(".no-watches")[0];
+        // Get handles to elements we use a lot
+        var table       = this.el.getElement("table.watches");
+        this.tbody      = table.getElement("tbody");
+        this.no_watches = this.el.getElement(".no-watches");
+
+        // Make the table sortable
+        var htmlTable = new HtmlTable(table);
+        htmlTable.enableSort();
+        htmlTable.sort(0, false);
 
         this.collection.on("add", this.addOne, this);
         this.collection.on("reset", this.addAll, this);
@@ -100,7 +107,7 @@ var WatchListView = Backbone.View.extend({
 
         // Render the view and put it in our table
         var el   = view.render().el;
-        el.inject(this.table);
+        el.inject(this.tbody);
     },
 
     hide: function() {

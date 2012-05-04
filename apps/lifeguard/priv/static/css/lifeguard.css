@@ -2,6 +2,10 @@ table {
     table-layout: fixed;
 }
 
+table.sortable thead th:hover {
+    cursor: pointer;
+}
+
 /* Bootstrap Overrides */
 .navbar-inner {
     border-radius: 0 0 4px 4px;

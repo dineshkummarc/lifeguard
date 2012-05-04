@@ -27,6 +27,7 @@
 		{% block js_templates %}{% endblock %}
 
 		<script src="/static/js/mootools-core-1.4.5.js"></script>
+		<script src="/static/js/mootools-more-1.4.0.1.js"></script>
 		<script src="/static/js/MooToolsAdapter.js"></script>
 		<script src="/static/js/underscore-min.js"></script>
 		<script src="/static/js/backbone.js"></script>

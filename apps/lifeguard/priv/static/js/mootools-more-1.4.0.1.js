@@ -1,6 +1,6 @@
 // MooTools: the javascript framework.
-// Load this file's selection again by visiting: http://mootools.net/more/8131c9a971548d23fa94b21a3b58e60c
-// Or build this file again with packager using: packager build More/Date More/String.Extras More/Element.Measure More/Fx.Elements More/Sortables More/HtmlTable More/HtmlTable.Zebra More/HtmlTable.Sort More/HtmlTable.Select
+// Load this file's selection again by visiting: http://mootools.net/more/6456256dfd4029bbe977922e4e90aa91 
+// Or build this file again with packager using: packager build More/Date More/String.Extras More/Element.Measure More/Sortables More/HtmlTable More/HtmlTable.Zebra More/HtmlTable.Sort More/HtmlTable.Select
 /*
 ---
 
@@ -155,7 +155,7 @@ var Locale = this.Locale = {
 
 		if (set) locale.define(set, key, value);
 
-
+		
 
 		if (!current) current = locale;
 
@@ -170,7 +170,7 @@ var Locale = this.Locale = {
 
 			this.fireEvent('change', locale);
 
-
+			
 		}
 
 		return this;
@@ -749,7 +749,7 @@ Date.extend({
 		return this;
 	},
 
-
+	
 
 	defineParser: function(pattern){
 		parsePatterns.push((pattern.re && pattern.handler) ? pattern : build(pattern));
@@ -933,47 +933,47 @@ provides: [String.Extras]
 (function(){
 
 var special = {
-	'a': /[Ã Ã¡Ã¢Ã£Ã¤Ã¥ÄƒÄ…]/g,
-	'A': /[Ã€ÃÃ‚ÃƒÃ„Ã…Ä‚Ä„]/g,
-	'c': /[Ä‡ÄÃ§]/g,
-	'C': /[Ä†ÄŒÃ‡]/g,
-	'd': /[ÄÄ‘]/g,
-	'D': /[ÄŽÃ]/g,
-	'e': /[Ã¨Ã©ÃªÃ«Ä›Ä™]/g,
-	'E': /[ÃˆÃ‰ÃŠÃ‹ÄšÄ˜]/g,
-	'g': /[ÄŸ]/g,
-	'G': /[Äž]/g,
-	'i': /[Ã¬Ã­Ã®Ã¯]/g,
-	'I': /[ÃŒÃÃŽÃ]/g,
-	'l': /[ÄºÄ¾Å‚]/g,
-	'L': /[Ä¹Ä½Å]/g,
-	'n': /[Ã±ÅˆÅ„]/g,
-	'N': /[Ã‘Å‡Åƒ]/g,
-	'o': /[Ã²Ã³Ã´ÃµÃ¶Ã¸Å‘]/g,
-	'O': /[Ã’Ã“Ã”Ã•Ã–Ã˜]/g,
-	'r': /[Å™Å•]/g,
-	'R': /[Å˜Å”]/g,
-	's': /[Å¡Å¡ÅŸ]/g,
-	'S': /[Å ÅžÅš]/g,
-	't': /[Å¥Å£]/g,
-	'T': /[Å¤Å¢]/g,
-	'ue': /[Ã¼]/g,
-	'UE': /[Ãœ]/g,
-	'u': /[Ã¹ÃºÃ»Å¯Âµ]/g,
-	'U': /[Ã™ÃšÃ›Å®]/g,
-	'y': /[Ã¿Ã½]/g,
-	'Y': /[Å¸Ã]/g,
-	'z': /[Å¾ÅºÅ¼]/g,
-	'Z': /[Å½Å¹Å»]/g,
-	'th': /[Ã¾]/g,
-	'TH': /[Ãž]/g,
-	'dh': /[Ã°]/g,
-	'DH': /[Ã]/g,
-	'ss': /[ÃŸ]/g,
-	'oe': /[Å“]/g,
-	'OE': /[Å’]/g,
-	'ae': /[Ã¦]/g,
-	'AE': /[Ã†]/g
+	'a': /[àáâãäåăą]/g,
+	'A': /[ÀÁÂÃÄÅĂĄ]/g,
+	'c': /[ćčç]/g,
+	'C': /[ĆČÇ]/g,
+	'd': /[ďđ]/g,
+	'D': /[ĎÐ]/g,
+	'e': /[èéêëěę]/g,
+	'E': /[ÈÉÊËĚĘ]/g,
+	'g': /[ğ]/g,
+	'G': /[Ğ]/g,
+	'i': /[ìíîï]/g,
+	'I': /[ÌÍÎÏ]/g,
+	'l': /[ĺľł]/g,
+	'L': /[ĹĽŁ]/g,
+	'n': /[ñňń]/g,
+	'N': /[ÑŇŃ]/g,
+	'o': /[òóôõöøő]/g,
+	'O': /[ÒÓÔÕÖØ]/g,
+	'r': /[řŕ]/g,
+	'R': /[ŘŔ]/g,
+	's': /[ššş]/g,
+	'S': /[ŠŞŚ]/g,
+	't': /[ťţ]/g,
+	'T': /[ŤŢ]/g,
+	'ue': /[ü]/g,
+	'UE': /[Ü]/g,
+	'u': /[ùúûůµ]/g,
+	'U': /[ÙÚÛŮ]/g,
+	'y': /[ÿý]/g,
+	'Y': /[ŸÝ]/g,
+	'z': /[žźż]/g,
+	'Z': /[ŽŹŻ]/g,
+	'th': /[þ]/g,
+	'TH': /[Þ]/g,
+	'dh': /[ð]/g,
+	'DH': /[Ð]/g,
+	'ss': /[ß]/g,
+	'oe': /[œ]/g,
+	'OE': /[Œ]/g,
+	'ae': /[æ]/g,
+	'AE': /[Æ]/g
 },
 
 tidy = {
@@ -1037,7 +1037,7 @@ String.implement({
 
 	truncate: function(max, trail, atChar){
 		var string = this;
-		if (trail == null && arguments.length == 1) trail = 'â€¦';
+		if (trail == null && arguments.length == 1) trail = '…';
 		if (string.length > max){
 			string = string.substring(0, max);
 			if (atChar){
@@ -1170,7 +1170,7 @@ Element.implement({
 	},
 
 	getComputedSize: function(options){
-
+		
 
 		options = Object.merge({
 			styles: ['padding','border'],
@@ -1221,82 +1221,6 @@ Element.implement({
 });
 
 })();
-
-
-/*
----
-
-script: Fx.Elements.js
-
-name: Fx.Elements
-
-description: Effect to change any number of CSS properties of any number of Elements.
-
-license: MIT-style license
-
-authors:
-  - Valerio Proietti
-
-requires:
-  - Core/Fx.CSS
-  - /MooTools.More
-
-provides: [Fx.Elements]
-
-...
-*/
-
-Fx.Elements = new Class({
-
-	Extends: Fx.CSS,
-
-	initialize: function(elements, options){
-		this.elements = this.subject = $$(elements);
-		this.parent(options);
-	},
-
-	compute: function(from, to, delta){
-		var now = {};
-
-		for (var i in from){
-			var iFrom = from[i], iTo = to[i], iNow = now[i] = {};
-			for (var p in iFrom) iNow[p] = this.parent(iFrom[p], iTo[p], delta);
-		}
-
-		return now;
-	},
-
-	set: function(now){
-		for (var i in now){
-			if (!this.elements[i]) continue;
-
-			var iNow = now[i];
-			for (var p in iNow) this.render(this.elements[i], p, iNow[p], this.options.unit);
-		}
-
-		return this;
-	},
-
-	start: function(obj){
-		if (!this.check(obj)) return this;
-		var from = {}, to = {};
-
-		for (var i in obj){
-			if (!this.elements[i]) continue;
-
-			var iProps = obj[i], iFrom = from[i] = {}, iTo = to[i] = {};
-
-			for (var p in iProps){
-				var parsed = this.prepare(this.elements[i], p, iProps[p]);
-				iFrom[p] = parsed.from;
-				iTo[p] = parsed.to;
-			}
-		}
-
-		return this.parent(from, to);
-	}
-
-});
 
 
 /*
@@ -1890,7 +1814,7 @@ var Sortables = new Class({
 		this.clone = this.getClone(event, element);
 
 		this.drag = new Drag.Move(this.clone, Object.merge({
-
+			
 			droppables: this.getDroppables()
 		}, this.options.dragOptions)).addEvents({
 			onSnap: function(){
@@ -3683,3 +3607,4 @@ HtmlTable = Class.refactor(HtmlTable, {
 	}
 
 });
+
