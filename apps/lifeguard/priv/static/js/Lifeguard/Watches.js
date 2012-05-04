@@ -19,7 +19,7 @@ var Watches = Backbone.Collection.extend({
 });
 
 var WatchView = Backbone.View.extend({
-    tagName: "tbody",
+    tagName: "tr",
     template: null,
 
     events: {
@@ -60,7 +60,7 @@ var WatchListView = Backbone.View.extend({
     },
 
     initialize: function() {
-        this.table      = this.$("table.watches")[0];
+        this.table      = this.$("table.watches tbody.watches")[0];
         this.no_watches = this.$(".no-watches")[0];
 
         this.collection.on("add", this.addOne, this);

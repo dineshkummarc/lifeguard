@@ -36,6 +36,8 @@
 					</td>
 				</tr>
 			</tbody>
+            <tbody class="watches">
+            </tbody>
 		</table>
 	</div>
 </div>
@@ -43,13 +45,11 @@
 
 {% block js_templates %}
 <script type="text/html" id="watch-template">
-<tr>
-	<td><%= name %></td>
-	<td><%= interval %></td>
-	<td>
-		<a href="#" class="btn btn-mini delete">Delete</a>
-	</td>
-</tr>
+<td><%= name %></td>
+<td><%= interval %></td>
+<td>
+  <a href="#" class="btn btn-mini delete">Delete</a>
+</td>
 </script>
 
 <script type="text/html" id="watch-new-template">
