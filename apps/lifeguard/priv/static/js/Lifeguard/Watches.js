@@ -187,7 +187,10 @@ var WatchFormView = Backbone.View.extend({
 
             // Since we're modifying an existing model, update all
             // the form values with the model data
-            this.el.getElementById("name").value = this.model.get("name");
+            var nameField = this.el.getElementById("name");
+            nameField.value = this.model.get("name");
+            nameField.set("readOnly", true);
+
             this.el.getElementById("interval").value = this.model.get("interval");
             this.editor.getSession().setValue(this.model.get("code"));
         }
