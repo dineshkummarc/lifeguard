@@ -181,6 +181,10 @@ var WatchFormView = Backbone.View.extend({
         }
 
         if (!this.isNew) {
+            // Update the header to say we're editing
+            var header = this.el.getElementById("header");
+            header.set("html", "Editing Watch: " + this.model.get("name"));
+
             // Since we're modifying an existing model, update all
             // the form values with the model data
             this.el.getElementById("name").value = this.model.get("name");
