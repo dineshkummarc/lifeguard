@@ -4,13 +4,17 @@
          delete_watch/1,
          get_watch/1,
          list_watches/0,
-         set_watch/3]).
+         set_watch/3,
+         watch_read_code/1,
+         watch_read_name/1,
+         watch_read_interval/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
+%% @doc The record type that represents a Watch.
 -record(watch, {
         name,    % Name for the watch
         code,    % Code for the watch (JavaScript)
-        interval % Interval that it runs on in milliseconds
+        interval % Interval that it runs in milliseconds
     }).
 
 -define(TABLE_NAME, table).
@@ -61,6 +65,18 @@ get_watch(Name) ->
             {ok, {Name, Code, Interval}};
         {error, Reason} -> {error, Reason}
     end.
+
+%% @doc Read the code of a watch.
+watch_read_code(#watch{code = Code}) ->
+    Code.
+
+%% @doc Read the name of a watch.
+watch_read_name(#watch{name = Name}) ->
+    Name.
+
+%% @doc Read the interval of a watch.
+watch_read_interval(#watch{interval = Interval}) ->
+    Interval.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% gen_server callbacks
@@ -139,6 +155,21 @@ record_to_external1([Watch | Rest], Acc) ->
 
 -ifdef(TEST).
 
+% Test the referentially transparent stuff
+watch_read_code_test() ->
+    Watch = #watch{code = "code"},
+    "code" = watch_read_code(Watch).
+
+watch_read_interval_test() ->
+    Watch = #watch{interval = 24},
+    24 = watch_read_interval(Watch).
+
+watch_read_name_test() ->
+    Watch = #watch{name = "Foo"},
+    "Foo" = watch_read_name(Watch).
+
+% Test runner for testing all the methods that requires a dets table
+% that stores watches.
 main_test_() ->
     {foreach,
         fun setup/0,
