@@ -1,8 +1,8 @@
--module(lifeguard_watch_manager_test).
+-module(lifeguard_watch_store_test).
 -include_lib("eunit/include/eunit.hrl").
 -compile(export_all).
 
--define(TEST_MODULE, lifeguard_watch_manager).
+-define(TEST_MODULE, lifeguard_watch_store).
 
 start_stop_test() ->
     % Test starting is okay.
@@ -26,7 +26,7 @@ main_test_() ->
         ]}.
 
 setup() ->
-    % Start up the watch manager.
+    % Start up the watch store.
     Pid = case ?TEST_MODULE:start_link(?cmd("mktemp -t lifeguard")) of
         {ok, P} -> P;
         {error, {already_started, P}} -> P
@@ -34,7 +34,7 @@ setup() ->
     Pid.
 
 teardown(Pid) ->
-    % Stop the watch manager
+    % Stop the watch store
     unlink(Pid),
     exit(Pid, normal).
 
