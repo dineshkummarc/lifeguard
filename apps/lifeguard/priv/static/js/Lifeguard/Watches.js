@@ -89,7 +89,7 @@ var WatchListView = Backbone.View.extend({
         if (this.collection.length) {
             this.no_watches.setStyle("display", "none");
         } else {
-            this.no_watches.setStyle("display", "table-row-group");
+            this.no_watches.setStyle("display", "table-row");
         }
     },
 
