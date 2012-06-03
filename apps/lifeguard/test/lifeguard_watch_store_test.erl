@@ -6,7 +6,7 @@
 
 build_watch(Name, Code, Interval) ->
     W1 = lifeguard_watch:new(),
-    W2 = lifegaurd_watch:set_name(W1, Name),
+    W2 = lifeguard_watch:set_name(W1, Name),
     W3 = lifeguard_watch:set_code(W2, Code),
     W4 = lifeguard_watch:set_interval(W3, Interval),
     W4.
@@ -16,10 +16,9 @@ start_stop_test() ->
     {ok, Pid} = ?TEST_MODULE:start_link(?cmd("mktemp -t lifeguard")),
 
     % Stop it.
-    unlink(Pid),
-    exit(Pid, normal).
+    gen_server:call(Pid, stop).
 
-main_test_FIXME() ->
+main_test_() ->
     {foreach,
         fun setup/0,
         fun teardown/1,
@@ -40,8 +39,7 @@ setup() ->
 
 teardown(Pid) ->
     % Stop the watch store
-    unlink(Pid),
-    exit(Pid, normal).
+    gen_server:call(Pid, stop).
 
 test_set_watch(Pid) ->
     fun() ->
@@ -63,7 +61,12 @@ test_get_watch(Pid) ->
             ok = gen_server:call(Pid, {set, build_watch(Name, Code, Interval)}),
 
             % Get it
-            {ok, {Name, Code, Interval}} = gen_server:call(Pid, {get, Name})
+            {ok, Watch} = gen_server:call(Pid, {get, Name}),
+
+            % Assert it
+            {ok, Name} = lifeguard_watch:get_name(Watch),
+            {ok, Code} = lifeguard_watch:get_code(Watch),
+            {ok, Interval} = lifeguard_watch:get_interval(Watch)
     end.
 
 test_list_watches(Pid) ->
