@@ -70,6 +70,7 @@ init(StoragePath) ->
     WatchTab = ets:new(?TABLE_NAME, [set, private]),
     {ok, Watches} = gen_server:call(Pid, list),
     populate_watch_table(WatchTab, Watches),
+    lager:debug("Populated initial watch table with ~p watches", [length(Watches)]),
 
     % Log it out and start
     lager:info("Watch manager started."),
@@ -114,9 +115,22 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 %% Private methods
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+%% @doc Converts a model watch object to our internal record.
+model_to_record(Watch) ->
+    {ok, ID} = lifeguard_watch:get_name(Watch),
+    #watch{
+        id = ID,
+        state = idle,
+        timer_ref = undefined
+    }.
+
+%% @doc Populates the in-memory watch table with a list of model
+%% objects.
 populate_watch_table(_Tab, []) ->
     ok;
-populate_watch_table(Tab, [_Watch | Rest]) ->
+populate_watch_table(Tab, [Watch | Rest]) ->
+    Record = model_to_record(Watch),
+    ets:insert(Tab, {Record#watch.id, Record}),
     populate_watch_table(Tab, Rest).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -124,5 +138,34 @@ populate_watch_table(Tab, [_Watch | Rest]) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -ifdef(TEST).
+
+model_to_record_test() ->
+    M1 = lifeguard_watch:new(),
+    M2 = lifeguard_watch:set_name(M1, "foo"),
+    M3 = lifeguard_watch:set_code(M2, "bar"),
+    M4 = lifeguard_watch:set_interval(M3, 5),
+
+    Rec = model_to_record(M4),
+    "foo" = Rec#watch.id,
+    idle  = Rec#watch.state,
+    undefined = Rec#watch.timer_ref.
+
+populate_watch_table_test() ->
+    % Create an ETS table
+    Tab = ets:new(my_table, [set, private]),
+
+    % Populate it with a list of model objects
+    A1 = lifeguard_watch:new(),
+    A2 = lifeguard_watch:set_name(A1, "foo"),
+    B1 = lifeguard_watch:new(),
+    B2 = lifeguard_watch:set_name(B1, "bar"),
+    ok = populate_watch_table(Tab, [A2, B2]),
+
+    % Find the items in the table to verify they are there
+    [AResult] = ets:lookup(Tab, "foo"),
+    [BResult] = ets:lookup(Tab, "bar"),
+
+    % Destroy the ETS table
+    ets:delete(Tab).
 
 -endif.
