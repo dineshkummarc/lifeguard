@@ -114,14 +114,22 @@ handle_call({set, Watch}, _From, #state{store_pid=StorePid, watch_tab=Tab} = Sta
 
     lager:info("Set watch: ~p~n", [lifeguard_watch:get_name(Watch)]),
 
-    % Schedule this watch if it isn't already scheduled
-    {ok, Record} = table_get_watch(Tab, ID),
-    ok = schedule_watch_if_needed(Tab, StorePid, Record),
-
     % Save the watch to the backing store
     lager:debug("Storing watch in backing store..."),
     Result = gen_server:call(StorePid, {set, Watch}),
-    {reply, Result, State}.
+
+     % Schedule this watch if it isn't already scheduled
+    Record = case table_get_watch(Tab, ID) of
+        {ok, Rec} -> Rec;
+        undefined ->
+            % This watch is not in our in-memory table yet! Create it
+            {ok, Rec} = table_add_watch_model(Tab, Watch),
+            Rec
+    end,
+
+    ok = schedule_watch_if_needed(Tab, StorePid, Record),
+
+   {reply, Result, State}.
 
 handle_cast(_Request, State) -> {noreply, State}.
 
@@ -211,7 +219,8 @@ schedule_watch_if_needed(Tab, StorePid, Record) ->
 
             % Update the record state
             RecordNew = Record#watch{state = scheduled, timer_ref = TRef},
-            table_set_watch(Tab, RecordNew);
+            {ok, RecordNew} = table_set_watch(Tab, RecordNew),
+            ok;
         false ->
             % It doesn't need scheduling, just return
             ok
@@ -271,7 +280,7 @@ table_populate_watches(Tab, [Watch | Rest]) ->
 %% @doc Sets the watch on the table. This will insert or update the watch.
 table_set_watch(Tab, Watch) ->
     true = ets:insert(Tab, {Watch#watch.id, Watch}),
-    ok.
+    {ok, Watch}.
 
 %% @doc Unschedules a timer reference if it is valid.
 unschedule(undefined) ->
@@ -411,7 +420,7 @@ test_table_add_get_delete_watch(#test_state{table=Tab}) ->
             Watch = W3,
 
             % Add it to the table
-            ok = table_add_watch_model(Tab, Watch),
+            {ok, Record} = table_add_watch_model(Tab, Watch),
 
             % Verify it was added
             {ok, Record} = table_get_watch(Tab, "foo"),
