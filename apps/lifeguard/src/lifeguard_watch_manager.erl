@@ -130,7 +130,7 @@ handle_call({set, Watch}, _From, #state{store_pid=StorePid, watch_tab=Tab} = Sta
 
     ok = schedule_watch_if_needed(Tab, StorePid, Record),
 
-   {reply, Result, State}.
+    {reply, Result, State}.
 
 handle_cast(_Request, State) -> {noreply, State}.
 
