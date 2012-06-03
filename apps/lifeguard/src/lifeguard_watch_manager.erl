@@ -10,6 +10,22 @@
          set_watch/3]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
+%% @doc This is the internal state of our gen_server.
+-record(state, {
+        store_pid, % Pid of the storage process
+        watch_tab  % ETS of all the watches
+    }).
+
+%% @doc The record type that represents an in-memory watch. The manager
+%% stores every watch it is responsible for in memory in this structure.
+-record(watch, {
+        id,        % ID of the watch
+        state,     % State of the watch
+        timer_ref  % Reference for the timer if it is waiting
+    }).
+
+-define(TABLE_NAME, in_memory_watches).
+
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
@@ -50,35 +66,63 @@ init(StoragePath) ->
     lager:debug("Starting watch store..."),
     {ok, Pid} = lifeguard_watch_store:start_link(StoragePath),
 
+    % Get a list of all the watches and populate our list
+    WatchTab = ets:new(?TABLE_NAME, [set, private]),
+    {ok, Watches} = gen_server:call(Pid, list),
+    populate_watch_table(WatchTab, Watches),
+
     % Log it out and start
     lager:info("Watch manager started."),
-    {ok, Pid}.
+    {ok, #state{
+            store_pid = Pid,
+            watch_tab = WatchTab
+        }}.
 
-handle_call({delete, Name}, _From, StorePid) ->
+handle_call({delete, Name}, _From, #state{store_pid=StorePid}=State) ->
     lager:info("Delete watch: ~p~n", [Name]),
     Result = gen_server:call(StorePid, {delete, Name}),
-    {reply, Result, StorePid};
-handle_call({get, Name}, _From, StorePid) ->
+    {reply, Result, State};
+handle_call({get, Name}, _From, #state{store_pid=StorePid}=State) ->
     lager:info("Getting watch: ~p~n", [Name]),
     Result = gen_server:call(StorePid, {get, Name}),
-    {reply, Result, StorePid};
-handle_call(list, _From, StorePid) ->
+    {reply, Result, State};
+handle_call(list, _From, #state{store_pid=StorePid}=State) ->
     lager:info("Listing watches~n"),
     Result = gen_server:call(StorePid, list),
-    {reply, Result, StorePid};
-handle_call({set, Name, Code, Interval}, _From, StorePid) ->
+    {reply, Result, State};
+handle_call({set, Name, Code, Interval}, _From, #state{store_pid=StorePid}=State) ->
     lager:info("Setting watch: ~p~n", [Name]),
     Result = gen_server:call(StorePid, {set, Name, Code, Interval}),
-    {reply, Result, StorePid}.
+    {reply, Result, State}.
 
 handle_cast(_Request, State) -> {noreply, State}.
 
 handle_info(_Request, State) -> {noreply, State}.
 
-terminate(_Reason, StorePid) ->
+terminate(_Reason, #state{store_pid=StorePid, watch_tab=Tab}) ->
     lager:debug("Terminating the watch store..."),
     gen_server:call(StorePid, stop),
+
+    lager:debug("Deleting the in-memory store of watches..."),
+    ets:delete(Tab),
 
     lager:info("Watch manager terminated.").
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Private methods
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+populate_watch_table(_Tab, []) ->
+    ok;
+populate_watch_table(Tab, [_Watch | Rest]) ->
+    populate_watch_table(Tab, Rest).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Tests
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+-ifdef(TEST).
+
+-endif.
