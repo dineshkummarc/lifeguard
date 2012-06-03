@@ -107,26 +107,39 @@ handle_call({get, Name}, _From, State) ->
     Tab      = State#state.watch_tab,
 
     % Grab the watch from the backing store
-    lager:info("Getting watch: ~p~n", [Name]),
+    lager:info("Getting watch: ~p", [Name]),
     Result = case gen_server:call(StorePid, {get, Name}) of
-        {ok, Watch1} ->
+        {ok, Watch} ->
             % Set the transient data on it based on our metadata
-            Record = table_get_watch(Tab, Name),
-            Transient = [{state, Record#watch.state}, {timer_at, Record#watch.timer_at}],
-            Watch2 = lifeguard_watch:set_transient(Watch1, Transient),
-            {ok, Watch2};
+            {ok, Record} = table_get_watch(Tab, Name),
+            {ok, watch_append_transient(Record, Watch)};
         Else -> Else
     end,
 
     {reply, Result, State};
-handle_call(list, _From, #state{store_pid=StorePid}=State) ->
-    lager:info("Listing watches~n"),
-    Result = gen_server:call(StorePid, list),
+handle_call(list, _From, State) ->
+    StorePid = State#state.store_pid,
+    Tab      = State#state.watch_tab,
+
+    % Get the watches from the backing store then append transient data
+    % to all of them.
+    lager:info("Listing watches"),
+    Result = case gen_server:call(StorePid, list) of
+        {ok, Watches} ->
+            Watches2 = lists:map(fun(Watch) ->
+                        {ok, Name}   = lifeguard_watch:get_name(Watch),
+                        {ok, Record} = table_get_watch(Tab, Name),
+                        watch_append_transient(Record, Watch)
+                end, Watches),
+            {ok, Watches2};
+        Other -> Other
+    end,
+
     {reply, Result, State};
 handle_call({set, Watch}, _From, #state{store_pid=StorePid, watch_tab=Tab} = State) ->
     ID = lifeguard_watch:get_name(Watch),
 
-    lager:info("Set watch: ~p~n", [lifeguard_watch:get_name(Watch)]),
+    lager:info("Set watch: ~p", [lifeguard_watch:get_name(Watch)]),
 
     % Save the watch to the backing store
     lager:debug("Storing watch in backing store..."),
@@ -222,7 +235,7 @@ schedule_watch(Watch) ->
     {Mega, Sec, _Micro} = os:timestamp(),
     IntervalSecFloat    = Interval / 1000,
     IntervalSec         = trunc(IntervalSecFloat),
-    TimerAt             = (Mega * 1000) + Sec + IntervalSec,
+    TimerAt             = (Mega * 1000000) + Sec + IntervalSec,
 
     lager:info("Watch '~p' scheduled to run in ~p ms", [Name, Interval]),
     {ok, TRef, TimerAt}.
@@ -305,6 +318,8 @@ table_get_watch(Tab, ID) ->
 table_populate_watches(_Tab, []) ->
     ok;
 table_populate_watches(Tab, [Watch | Rest]) ->
+    {ok, Name} = lifeguard_watch:get_name(Watch),
+    lager:debug("Populating: ~p", [Name]),
     table_add_watch_model(Tab, Watch),
     table_populate_watches(Tab, Rest).
 
@@ -319,6 +334,12 @@ unschedule(undefined) ->
 unschedule(TRef) ->
     {ok, cancel} = timer:cancel(TRef),
     ok.
+
+%% @doc Takes our metadata record and a watch model and appends the transient
+%% data to it, returning a new watch model.
+watch_append_transient(Record, Watch) ->
+    Transient = [{state, Record#watch.state}, {timer_at, Record#watch.timer_at}],
+    lifeguard_watch:set_transient(Watch, Transient).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Tests

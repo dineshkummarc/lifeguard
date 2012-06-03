@@ -165,10 +165,18 @@ struct_members_for_watch(Watch) ->
     {ok, Name} = lifeguard_watch:get_name(Watch),
     {ok, Code} = lifeguard_watch:get_code(Watch),
     {ok, Interval} = lifeguard_watch:get_interval(Watch),
+    {ok, Transient} = lifeguard_watch:get_transient(Watch),
+    {state, State}  = proplists:lookup(state, Transient),
+    TimerAt = case proplists:lookup(timer_at, Transient) of
+        {timer_at, undefined} -> null;
+        {timer_at, Timestamp} -> Timestamp
+    end,
 
     [{name, Name},
      {code, Code},
-     {interval, Interval}].
+     {interval, Interval},
+     {state, State},
+     {timer_at, TimerAt}].
 
 validate_struct(Struct) ->
     % The "P" variables are the proplist, the "E" variables are

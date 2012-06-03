@@ -26,12 +26,13 @@
 				<tr>
 					<th>Name</th>
 					<th>Interval (ms)</th>
+                    <th>Next Run</th>
 					<th>Options</th>
 				</tr>
 			</thead>
             <tbody class="watches">
                 <tr class="no-watches">
-					<td colspan="3">
+					<td colspan="4">
 						<strong>No watches have been created yet!</strong>
 					</td>
 				</tr>
@@ -45,6 +46,7 @@
 <script type="text/html" id="watch-template">
 <td><%= name %></td>
 <td><%= interval %></td>
+<td><%= timer_at %></td>
 <td>
   <a href="#" class="btn btn-mini edit">
     <i class="icon-wrench"></i>

@@ -42,10 +42,10 @@ init(StoragePath) ->
     {ok, #state{dets=TableName}}.
 
 handle_call({delete, Name}, _From, #state{dets=Table}=State) ->
-    lager:info("Delete watch: ~p~n", [Name]),
+    lager:info("Delete watch: ~p", [Name]),
     {reply, internal_delete_watch(Table, Name), State};
 handle_call({get, Name}, _From, #state{dets=Table}=State) ->
-    lager:info("Getting watch: ~p~n", [Name]),
+    lager:info("Getting watch: ~p", [Name]),
     Result = case internal_get_watch(Table, Name) of
         {ok, Watch} when is_record(Watch, watch) ->
             {ok, record_to_model(Watch)};
@@ -54,7 +54,7 @@ handle_call({get, Name}, _From, #state{dets=Table}=State) ->
 
     {reply, Result, State};
 handle_call(list, _From, #state{dets=Table}=State) ->
-    lager:info("Listing watches~n"),
+    lager:info("Listing watches"),
 
     % Convert the internal list to some external format
     List   = internal_list_watches(Table),
@@ -63,7 +63,7 @@ handle_call(list, _From, #state{dets=Table}=State) ->
     {reply, Result, State};
 handle_call({set, Watch}, _From, #state{dets=Table}=State) ->
     WatchRec = model_to_record(Watch),
-    lager:info("Setting watch: ~p~n", [WatchRec#watch.name]),
+    lager:info("Setting watch: ~p", [WatchRec#watch.name]),
     {reply, internal_set_watch(Table, WatchRec), State};
 handle_call(stop, _From, State) ->
     {stop, normal, ok, State}.
