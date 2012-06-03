@@ -69,7 +69,7 @@ init(StoragePath) ->
     % Get a list of all the watches and populate our list
     WatchTab = ets:new(?TABLE_NAME, [set, private]),
     {ok, Watches} = gen_server:call(Pid, list),
-    populate_watch_table(WatchTab, Watches),
+    table_populate_watches(WatchTab, Watches),
     lager:debug("Populated initial watch table with ~p watches", [length(Watches)]),
 
     % Schedule all the watches
@@ -94,14 +94,36 @@ handle_call(list, _From, #state{store_pid=StorePid}=State) ->
     lager:info("Listing watches~n"),
     Result = gen_server:call(StorePid, list),
     {reply, Result, State};
-handle_call({set, Watch}, _From, #state{store_pid=StorePid}=State) ->
-    lager:info("Setting watch: ~p~n", [lifeguard_watch:get_name(Watch)]),
+handle_call({set, Watch}, _From, #state{store_pid=StorePid, watch_tab=Tab} = State) ->
+    ID = lifeguard_watch:get_name(Watch),
+
+    lager:info("Set watch: ~p~n", [lifeguard_watch:get_name(Watch)]),
+
+    % Schedule this watch if it isn't already scheduled
+    {ok, Record} = table_get_watch(Tab, ID),
+    ok = schedule_watch_if_needed(Tab, StorePid, Record),
+
+    % Save the watch to the backing store
+    lager:debug("Storing watch in backing store..."),
     Result = gen_server:call(StorePid, {set, Watch}),
     {reply, Result, State}.
 
 handle_cast(_Request, State) -> {noreply, State}.
 
 handle_info({run, ID}, State) ->
+    StorePid = State#state.store_pid,
+    Tab = State#state.watch_tab,
+
+    % Get the record we want to run, along with its associated watch
+    {ok, Record} = table_get_watch(Tab, ID),
+    {ok, Watch}  = store_get_watch(StorePid, ID),
+
+    % Reschedule it immediately
+    {ok, TRef} = reschedule_watch(Record#watch.timer_ref, Watch),
+    RecordNew  = Record#watch{timer_ref = TRef},
+    table_set_watch(Tab, RecordNew),
+
+    % Run the thing
     lager:info("Run: ~p", [ID]),
     {noreply, State};
 handle_info(_Request, State) -> {noreply, State}.
@@ -130,29 +152,56 @@ model_to_record(Watch) ->
         timer_ref = undefined
     }.
 
-%% @doc Populates the in-memory watch table with a list of model
-%% objects.
-populate_watch_table(_Tab, []) ->
-    ok;
-populate_watch_table(Tab, [Watch | Rest]) ->
-    Record = model_to_record(Watch),
-    ets:insert(Tab, {Record#watch.id, Record}),
-    populate_watch_table(Tab, Rest).
+%% @doc Reschedules a watch to run. This will cancel any previous timer
+%% and sets a new timer.
+reschedule_watch(TRef, Watch) ->
+    % Cancel the previous timer
+    case TRef of
+        undefined -> ignore;
+        TRef -> timer:cancel(TRef)
+    end,
 
-%% @doc Schedules a watch. This will return the timer reference.
-schedule_watch(Tab, StorePid, ID) ->
-    % Find the record in the ETS table
-    [{ID, Record}] = ets:lookup(Tab, ID),
-    {ok, Watch}    = gen_server:call(StorePid, {get, Record#watch.id}),
+    % Schedule it again
+    schedule_watch(Watch).
 
-    % Schedule it
+%% @doc Schedules a watch. The given watch must be a full lifeguard_watch
+%% model. Once scheduled, this returns the timer reference.
+%%
+%% NOTE: This will send the `{run, ID}` message to whatever process
+%% calls this. This is a private method and as such its only meant to be
+%% called from THIS gen_server process.
+schedule_watch(Watch) ->
+    {ok, Name}     = lifeguard_watch:get_name(Watch),
     {ok, Interval} = lifeguard_watch:get_interval(Watch),
-    {ok, TRef} = timer:send_after(Interval, ?MODULE, {run, ID}),
-    lager:info("Watch '~p' scheduled to run in ~p ms", [ID, Interval]),
+    {ok, TRef}     = timer:send_after(Interval, {run, Name}),
+    lager:info("Watch '~p' scheduled to run in ~p ms", [Name, Interval]),
+    {ok, TRef}.
 
-    % Update the record and write it
-    RecordNew = Record#watch{state = scheduled, timer_ref = TRef},
-    ets:insert(Tab, {ID, RecordNew}),
+%% @doc Schedules a watch if it needs to be scheduled.
+schedule_watch_if_needed(Tab, StorePid, Record) ->
+    ID = Record#watch.id,
+    Needed = case Record#watch.timer_ref of
+        undefined ->
+            % The watch has never been scheduled, schedule it
+            lager:debug("Watch '~p' never scheduled. Scheduling.", [ID]),
+            true;
+        _Other -> false
+    end,
+
+    ok = case Needed of
+        true ->
+            % We need to schedule
+            {ok, Watch} = store_get_watch(StorePid, ID),
+            {ok, TRef}  = schedule_watch(Watch),
+
+            % Update the record state
+            RecordNew = Record#watch{state = scheduled, timer_ref = TRef},
+            table_set_watch(Tab, RecordNew);
+        false ->
+            % It doesn't need scheduling, just return
+            ok
+    end,
+
     ok.
 
 %% @doc Schedules an entire table of watches.
@@ -162,12 +211,47 @@ schedule_watch_table(Tab, StorePid) ->
 schedule_watch_table(_Tab, _StorePid, '$end_of_table') ->
     ok;
 schedule_watch_table(Tab, StorePid, Key) ->
-    % Schedule it
-    schedule_watch(Tab, StorePid, Key),
+    % Find the record in the ETS table and query the store for
+    % the actual Watch itself.
+    {ok, Record}   = table_get_watch(Tab, Key),
+    schedule_watch_if_needed(Tab, StorePid, Record),
 
     % Get the next key and loop
     NextKey = ets:next(Tab, Key),
     schedule_watch_table(Tab, StorePid, NextKey).
+
+%% @doc Gets a watch from the backing store, given an ID.
+store_get_watch(StorePid, ID) ->
+    gen_server:call(StorePid, {get, ID}).
+
+%% @doc Adds a watch to the table. The watch should be a lifeguard_watch
+%% model.
+table_add_watch_model(Tab, Watch) ->
+    Record = model_to_record(Watch),
+    table_set_watch(Tab, Record).
+
+%% @doc Retrieves a watch from the table. The raw internal record format
+%% will be returned, not a lifeguard_watch model object.
+table_get_watch(Tab, ID) ->
+    case ets:lookup(Tab, ID) of
+        [] ->
+            undefined;
+        [{ID, Record}] ->
+            {ok, Record}
+    end.
+
+%% @doc Populates the in-memory watch table with a list of model
+%% objects.
+table_populate_watches(_Tab, []) ->
+    ok;
+table_populate_watches(Tab, [Watch | Rest]) ->
+    table_add_watch_model(Tab, Watch),
+    table_populate_watches(Tab, Rest).
+
+%% @doc Sets the watch on the table. This will insert or update the watch.
+table_set_watch(Tab, Watch) ->
+    true = ets:insert(Tab, {Watch#watch.id, Watch}),
+    ok.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Tests
@@ -191,17 +275,63 @@ model_to_record_test() ->
     idle  = Rec#watch.state,
     undefined = Rec#watch.timer_ref.
 
-% Test runner for testing all the methods that require an ets table
-ets_test_() ->
+reschedule_watch_test() ->
+    % Create a watch
+    M1 = lifeguard_watch:new(),
+    M2 = lifeguard_watch:set_name(M1, "foo"),
+    M3 = lifeguard_watch:set_interval(M2, 50),
+    Watch = M3,
+
+    % Schedule it once
+    {ok, TRef} = schedule_watch(Watch),
+
+    % Reschedule it after some small amount of time
+    timer:sleep(10),
+    {ok, _TRef2} = reschedule_watch(TRef, Watch),
+
+    % Verify we get the message
+    true = receive
+        {run, "foo"} -> true
+    after 100 ->
+        good_timeout
+    end,
+
+    % Verify we have no other messages
+    true = receive
+        Anything -> Anything
+    after 50 ->
+        true
+    end.
+
+schedule_watch_test() ->
+    % Create a watch
+    M1 = lifeguard_watch:new(),
+    M2 = lifeguard_watch:set_name(M1, "foo"),
+    M3 = lifeguard_watch:set_interval(M2, 50),
+    Watch = M3,
+
+    % Schedule it
+    {ok, _TRef} = schedule_watch(Watch),
+
+    % Verify we get it
+    true = receive
+        {run, "foo"} -> true
+    after 100 ->
+        false
+    end.
+
+% Test runner for testing all the methods that require state.
+stateful_test_() ->
     {foreach,
-        fun ets_setup/0,
-        fun ets_teardown/1,
+        fun setup/0,
+        fun teardown/1,
         [
-            fun test_populate_watch_table/1,
-            fun test_schedule_watch/1
+            fun test_table_add_get_watch/1,
+            fun test_table_get_watch_nonexistent/1,
+            fun test_table_populate_watches/1
         ]}.
 
-ets_setup() ->
+setup() ->
     % Create the ETS table. We do this by looking up if a previous ETS
     % table for this test has been made. If so, then we use it but first
     % clear out the objects. If not, then we create a new ETS table. The
@@ -215,30 +345,49 @@ ets_setup() ->
             Name
     end,
 
-    {ok, StorePid} = {ok, todo},
+    {ok, StorePid} = lifeguard_watch_store:start_link(?cmd("mktemp -t lifeguard")),
     #test_state{table=Tab, store=StorePid}.
 
-ets_teardown(#test_state{table=Tab}) ->
+teardown(#test_state{table=Tab, store=StorePid}) ->
     % Delete the ETS table
-    ets:delete(Tab).
+    ets:delete(Tab),
 
-test_populate_watch_table(#test_state{table=Tab}) ->
+    % Stop the store
+    gen_server:call(StorePid, stop).
+
+test_table_add_get_watch(#test_state{table=Tab}) ->
+    fun() ->
+            % Create a model object
+            W1 = lifeguard_watch:new(),
+            W2 = lifeguard_watch:set_name(W1, "foo"),
+            W3 = lifeguard_watch:set_code(W2, "bar"),
+            Watch = W3,
+
+            % Add it to the table
+            ok = table_add_watch_model(Tab, Watch),
+
+            % Verify it was added
+            {ok, Record} = table_get_watch(Tab, "foo"),
+            "foo" = Record#watch.id
+    end.
+
+test_table_get_watch_nonexistent(#test_state{table=Tab}) ->
+    fun() ->
+            undefined = table_get_watch(Tab, "foo")
+    end.
+
+test_table_populate_watches(#test_state{table=Tab}) ->
     fun() ->
             % Populate it with a list of model objects
             A1 = lifeguard_watch:new(),
             A2 = lifeguard_watch:set_name(A1, "foo"),
             B1 = lifeguard_watch:new(),
             B2 = lifeguard_watch:set_name(B1, "bar"),
-            ok = populate_watch_table(Tab, [A2, B2]),
+            ok = table_populate_watches(Tab, [A2, B2]),
 
             % Find the items in the table to verify they are there
-            [AResult] = ets:lookup(Tab, "foo"),
-            [BResult] = ets:lookup(Tab, "bar")
-    end.
-
-test_schedule_watch(#test_state{table=Tab, store=StorePid}) ->
-    fun() ->
-            ok
+            {ok, AResult} = table_get_watch(Tab, "foo"),
+            {ok, BResult} = table_get_watch(Tab, "bar")
     end.
 
 -endif.

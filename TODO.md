@@ -1,2 +1,2 @@
-* Unit test lifeguard_watch_manager. We need to specifically mock out
-  lifeguard_watch_store
+* Integration test lifeguard_watch_manager.
+* Watches need unique IDs, not user-assignable names. UUID?
