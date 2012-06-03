@@ -38,58 +38,58 @@ teardown(Pid) ->
     unlink(Pid),
     exit(Pid, normal).
 
-test_set_watch(_) ->
+test_set_watch(Pid) ->
     fun() ->
-            ok = ?TEST_MODULE:set_watch("foo", "code", 5)
+            ok = gen_server:call(Pid, {set, "foo", "code", 5})
     end.
 
-test_get_watch_nonexistent(_) ->
+test_get_watch_nonexistent(Pid) ->
     fun() ->
-            {error, no_watch} = ?TEST_MODULE:get_watch("i-dont-exist")
+            {error, no_watch} = gen_server:call(Pid, {get, "i-dont-exist"})
     end.
 
-test_get_watch(_) ->
+test_get_watch(Pid) ->
     fun() ->
             Name = "foo",
             Code = "code",
             Interval = 5,
 
             % Set it
-            ok = ?TEST_MODULE:set_watch(Name, Code, Interval),
+            ok = gen_server:call(Pid, {set, Name, Code, Interval}),
 
             % Get it
-            {ok, {Name, Code, Interval}} = ?TEST_MODULE:get_watch(Name)
+            {ok, {Name, Code, Interval}} = gen_server:call(Pid, {get, Name})
     end.
 
-test_list_watches(_) ->
+test_list_watches(Pid) ->
     fun() ->
             Code = "code",
             Interval = 5,
 
             % Set it
-            ok = ?TEST_MODULE:set_watch("foo", Code, Interval),
-            ok = ?TEST_MODULE:set_watch("bar", Code, Interval),
+            ok = gen_server:call(Pid, {set, "foo", Code, Interval}),
+            ok = gen_server:call(Pid, {set, "bar", Code, Interval}),
 
             % Get em
-            {ok, Result} = ?TEST_MODULE:list_watches(),
+            {ok, Result} = gen_server:call(Pid, list),
             ?assert(length(Result) =:= 2)
     end.
 
-test_delete_watch_nonexistent(_) ->
+test_delete_watch_nonexistent(Pid) ->
     fun() ->
-            ok = ?TEST_MODULE:delete_watch("whatever")
+            ok = gen_server:call(Pid, {delete, "whatever"})
     end.
 
-test_delete_watch(_) ->
+test_delete_watch(Pid) ->
     fun() ->
             Name = "foo",
 
             % Set it
-            ok = ?TEST_MODULE:set_watch(Name, "foo", "bar"),
+            ok = gen_server:call(Pid, {set, Name, "foo", "bar"}),
 
             % Delete it
-            ok = ?TEST_MODULE:delete_watch(Name),
+            ok = gen_server:call(Pid, {delete, Name}),
 
             % Verify it is gone
-            {error, no_watch} = ?TEST_MODULE:get_watch(Name)
+            {error, no_watch} = gen_server:call(Pid, {get, Name})
     end.

@@ -50,9 +50,9 @@ init([]) ->
         {lifeguard_js_manager_sup, start_link, [JsVMCount]},
         permanent, 30000, supervisor, dynamic},
 
-    % Watch store
-    WatchStore = {watch_store,
-        {lifeguard_watch_store, start_link, [StoragePath]},
+    % Watch manager
+    WatchManager = {watch_manager,
+        {lifeguard_watch_manager, start_link, [StoragePath]},
         permanent, 30000, worker, dynamic},
 
     % Web interface
@@ -61,5 +61,5 @@ init([]) ->
            permanent, 30000, worker, dynamic},
 
     % Return the full spec
-    Children = [DSManager, JsManager, WatchStore, Web],
+    Children = [DSManager, JsManager, WatchManager, Web],
     {ok, { {one_for_one, 5, 10}, Children} }.

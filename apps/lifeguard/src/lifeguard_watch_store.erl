@@ -1,10 +1,6 @@
 -module(lifeguard_watch_store).
 -behavior(gen_server).
 -export([start_link/1,
-         delete_watch/1,
-         get_watch/1,
-         list_watches/0,
-         set_watch/3,
          watch_read_code/1,
          watch_read_name/1,
          watch_read_interval/1]).
@@ -25,46 +21,7 @@
 
 %% @doc Start the watch store.
 start_link(StoragePath) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, StoragePath, []).
-
-%% @doc Delete a watch out of the system.
--spec delete_watch(string()) -> ok.
-delete_watch(Name) ->
-    gen_server:call(?MODULE, {delete, Name}).
-
-%% @doc Lists all the watches in the system.
--spec list_watches() -> {ok, [term()]}.
-list_watches() ->
-    case gen_server:call(?MODULE, list) of
-        {ok, Watches} ->
-            {ok, record_to_external(Watches)};
-        Other ->
-            Other
-    end.
-
-%% @doc Add a watch to the system. This will persist the watch into the
-%% backing storage. If the watch already exists then this will update it,
-%% otherwise a new watch will be created.
--spec set_watch(string(), string(), pos_integer()) -> ok | {error, term()}.
-set_watch(Name, Code, Interval) ->
-    Watch = #watch{
-            name = Name,
-            code = Code,
-            interval = Interval
-            },
-    gen_server:call(?MODULE, {set, Watch}).
-
-%% @doc Get a watch out of the system.
--spec get_watch(string()) -> {ok, {string(), string(), pos_integer()}} | {error, term()}.
-get_watch(Name) ->
-    case gen_server:call(?MODULE, {get, Name}) of
-        {ok, Watch} when is_record(Watch, watch) ->
-            Name = Watch#watch.name,
-            Code = Watch#watch.code,
-            Interval = Watch#watch.interval,
-            {ok, {Name, Code, Interval}};
-        {error, Reason} -> {error, Reason}
-    end.
+    gen_server:start_link(?MODULE, StoragePath, []).
 
 %% @doc Read the code of a watch.
 watch_read_code(#watch{code = Code}) ->
@@ -98,13 +55,33 @@ handle_call({delete, Name}, _From, State) ->
     {reply, internal_delete_watch(Name), State};
 handle_call({get, Name}, _From, State) ->
     lager:info("Getting watch: ~p~n", [Name]),
-    {reply, internal_get_watch(Name), State};
+    Result = case internal_get_watch(Name) of
+        {ok, Watch} when is_record(Watch, watch) ->
+            Name = Watch#watch.name,
+            Code = Watch#watch.code,
+            Interval = Watch#watch.interval,
+            {ok, {Name, Code, Interval}};
+        {error, Reason} -> {error, Reason}
+    end,
+
+    {reply, Result, State};
 handle_call(list, _From, State) ->
     lager:info("Listing watches~n"),
-    {reply, {ok, internal_list_watches()}, State};
-handle_call({set, Watch}, _From, State) when is_record(Watch, watch) ->
-    lager:info("Setting watch: ~p~n", [Watch#watch.name]),
-    {reply, internal_set_watch(Watch), State}.
+
+    % Convert the internal list to some external format
+    Result = {ok, record_to_external(internal_list_watches())},
+    {reply, Result, State};
+handle_call({set, Name, Code, Interval}, _From, State) ->
+    lager:info("Setting watch: ~p~n", [Name]),
+    Watch = #watch{
+            name = Name,
+            code = Code,
+            interval = Interval
+        },
+
+    {reply, internal_set_watch(Watch), State};
+handle_call(stop, _From, State) ->
+    {stop, normal, ok, State}.
 
 handle_cast(_Request, State) -> {noreply, State}.
 
