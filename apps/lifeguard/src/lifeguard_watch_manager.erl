@@ -22,7 +22,7 @@
         id,        % ID of the watch
         state,     % State of the watch
         timer_ref, % Reference for the timer if it is waiting
-        timer_run  % The time when the timer should run within reasonable error bounds
+        timer_at   % The time when the timer should run within reasonable error bounds
     }).
 
 -define(TABLE_NAME, in_memory_watches).
@@ -102,9 +102,22 @@ handle_call({delete, Name}, _From, State) ->
     table_delete_watch(Tab, Name),
 
     {reply, Result, State};
-handle_call({get, Name}, _From, #state{store_pid=StorePid}=State) ->
+handle_call({get, Name}, _From, State) ->
+    StorePid = State#state.store_pid,
+    Tab      = State#state.watch_tab,
+
+    % Grab the watch from the backing store
     lager:info("Getting watch: ~p~n", [Name]),
-    Result = gen_server:call(StorePid, {get, Name}),
+    Result = case gen_server:call(StorePid, {get, Name}) of
+        {ok, Watch1} ->
+            % Set the transient data on it based on our metadata
+            Record = table_get_watch(Tab, Name),
+            Transient = [{state, Record#watch.state}, {timer_at, Record#watch.timer_at}],
+            Watch2 = lifeguard_watch:set_transient(Watch1, Transient),
+            {ok, Watch2};
+        Else -> Else
+    end,
+
     {reply, Result, State};
 handle_call(list, _From, #state{store_pid=StorePid}=State) ->
     lager:info("Listing watches~n"),
@@ -143,10 +156,10 @@ handle_info({run, ID}, State) ->
     {ok, Watch}  = store_get_watch(StorePid, ID),
 
     % Reschedule it immediately
-    {ok, TRef, TimerRun} = reschedule_watch(Record#watch.timer_ref, Watch),
+    {ok, TRef, TimerAt} = reschedule_watch(Record#watch.timer_ref, Watch),
     RecordNew  = Record#watch{
             timer_ref = TRef,
-            timer_run = TimerRun
+            timer_at  = TimerAt
         },
     table_set_watch(Tab, RecordNew),
 
@@ -177,7 +190,7 @@ model_to_record(Watch) ->
         id = ID,
         state = idle,
         timer_ref = undefined,
-        timer_run = undefined
+        timer_at  = undefined
     }.
 
 %% @doc Reschedules a watch to run. This will cancel any previous timer
@@ -209,10 +222,10 @@ schedule_watch(Watch) ->
     {Mega, Sec, _Micro} = os:timestamp(),
     IntervalSecFloat    = Interval / 1000,
     IntervalSec         = trunc(IntervalSecFloat),
-    TimerRun            = (Mega * 1000) + Sec + IntervalSec,
+    TimerAt             = (Mega * 1000) + Sec + IntervalSec,
 
     lager:info("Watch '~p' scheduled to run in ~p ms", [Name, Interval]),
-    {ok, TRef, TimerRun}.
+    {ok, TRef, TimerAt}.
 
 %% @doc Schedules a watch if it needs to be scheduled.
 schedule_watch_if_needed(Tab, StorePid, Record) ->
@@ -229,13 +242,13 @@ schedule_watch_if_needed(Tab, StorePid, Record) ->
         true ->
             % We need to schedule
             {ok, Watch} = store_get_watch(StorePid, ID),
-            {ok, TRef, TimerRun}  = schedule_watch(Watch),
+            {ok, TRef, TimerAt}  = schedule_watch(Watch),
 
             % Update the record state
             RecordNew = Record#watch{
                     state = scheduled,
                     timer_ref = TRef,
-                    timer_run = TimerRun
+                    timer_at  = TimerAt
                 },
             {ok, RecordNew} = table_set_watch(Tab, RecordNew),
             ok;
@@ -337,11 +350,11 @@ reschedule_watch_test() ->
     Watch = M3,
 
     % Schedule it once
-    {ok, TRef, _TimerRun} = schedule_watch(Watch),
+    {ok, TRef, _TimerAt} = schedule_watch(Watch),
 
     % Reschedule it after some small amount of time
     timer:sleep(10),
-    {ok, _TRef2, _TimerRun} = reschedule_watch(TRef, Watch),
+    {ok, _TRef2, _TimerAt} = reschedule_watch(TRef, Watch),
 
     % Verify we get the message
     true = receive
@@ -365,7 +378,7 @@ schedule_watch_test() ->
     Watch = M3,
 
     % Schedule it
-    {ok, _TRef, _TimerRun} = schedule_watch(Watch),
+    {ok, _TRef, _TimerAt} = schedule_watch(Watch),
 
     % Verify we get it
     true = receive
@@ -382,7 +395,7 @@ unschedule_test() ->
     Watch = M3,
 
     % Schedule it
-    {ok, TRef, _TimerRun} = schedule_watch(Watch),
+    {ok, TRef, _TimerAt} = schedule_watch(Watch),
 
     % Unschedule it!
     ok = unschedule(TRef),

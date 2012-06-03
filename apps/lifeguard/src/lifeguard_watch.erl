@@ -5,15 +5,19 @@
          get_code/1,
          get_interval/1,
          get_name/1,
+         get_transient/1,
          set_code/2,
          set_interval/2,
-         set_name/2]).
+         set_name/2,
+         set_transient/2]).
 
-%% @doc THe record that is used as the internal structure of the watch.
+%% @doc The record that is used as the internal structure of the watch.
 -record(watch, {
-        name,
-        code,
-        interval
+        name,     % Name of the watch (binary)
+        code,     % JavaScript code (binary)
+        interval, % Interval (ms) to run the watch
+        transient % Transient (not persisted) data associated with a watch.
+                  % This should be a proplist
     }).
 
 -ifdef(TEST).
@@ -36,6 +40,10 @@ get_interval(#watch{interval=Interval}) ->
 get_name(#watch{name=Name}) ->
     {ok, Name}.
 
+%% @doc Reads the transient data associated with a watch.
+get_transient(#watch{transient=Transient}) ->
+    {ok, Transient}.
+
 %% @doc Sets the code for a watch and returns a new watch with that
 %% code set.
 set_code(Watch, Code) when is_record(Watch, watch) ->
@@ -49,6 +57,10 @@ set_interval(Watch, Interval) when is_record(Watch, watch) ->
 %% set.
 set_name(Watch, Name) when is_record(Watch, watch) ->
     Watch#watch{name=Name}.
+
+%% @doc Sets the transient data associated with a watch.
+set_transient(Watch, Transient) when is_record(Watch, watch) ->
+    Watch#watch{transient=Transient}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Tests
@@ -85,5 +97,10 @@ get_set_name_test() ->
     Watch        = new(),
     Watch2       = set_name(Watch, "foo"),
     {ok, "foo"} = get_name(Watch2).
+
+get_set_transient_test() ->
+    Watch       = new(),
+    Watch2      = set_transient(Watch, "foo"),
+    {ok, "foo"} = get_transient(Watch2).
 
 -endif.
