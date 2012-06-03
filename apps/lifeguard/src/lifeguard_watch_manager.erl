@@ -21,7 +21,8 @@
 -record(watch, {
         id,        % ID of the watch
         state,     % State of the watch
-        timer_ref  % Reference for the timer if it is waiting
+        timer_ref, % Reference for the timer if it is waiting
+        timer_run  % The time when the timer should run within reasonable error bounds
     }).
 
 -define(TABLE_NAME, in_memory_watches).
@@ -142,8 +143,11 @@ handle_info({run, ID}, State) ->
     {ok, Watch}  = store_get_watch(StorePid, ID),
 
     % Reschedule it immediately
-    {ok, TRef} = reschedule_watch(Record#watch.timer_ref, Watch),
-    RecordNew  = Record#watch{timer_ref = TRef},
+    {ok, TRef, TimerRun} = reschedule_watch(Record#watch.timer_ref, Watch),
+    RecordNew  = Record#watch{
+            timer_ref = TRef,
+            timer_run = TimerRun
+        },
     table_set_watch(Tab, RecordNew),
 
     % Run the thing
@@ -172,7 +176,8 @@ model_to_record(Watch) ->
     #watch{
         id = ID,
         state = idle,
-        timer_ref = undefined
+        timer_ref = undefined,
+        timer_run = undefined
     }.
 
 %% @doc Reschedules a watch to run. This will cancel any previous timer
@@ -197,8 +202,17 @@ schedule_watch(Watch) ->
     {ok, Name}     = lifeguard_watch:get_name(Watch),
     {ok, Interval} = lifeguard_watch:get_interval(Watch),
     {ok, TRef}     = timer:send_after(Interval, {run, Name}),
+
+    % Determine when this is supposed to run next. We ignore microseconds
+    % because when converting to a timestamp because we don't consider it
+    % useful from a human perspective.
+    {Mega, Sec, _Micro} = os:timestamp(),
+    IntervalSecFloat    = Interval / 1000,
+    IntervalSec         = trunc(IntervalSecFloat),
+    TimerRun            = (Mega * 1000) + Sec + IntervalSec,
+
     lager:info("Watch '~p' scheduled to run in ~p ms", [Name, Interval]),
-    {ok, TRef}.
+    {ok, TRef, TimerRun}.
 
 %% @doc Schedules a watch if it needs to be scheduled.
 schedule_watch_if_needed(Tab, StorePid, Record) ->
@@ -215,10 +229,14 @@ schedule_watch_if_needed(Tab, StorePid, Record) ->
         true ->
             % We need to schedule
             {ok, Watch} = store_get_watch(StorePid, ID),
-            {ok, TRef}  = schedule_watch(Watch),
+            {ok, TRef, TimerRun}  = schedule_watch(Watch),
 
             % Update the record state
-            RecordNew = Record#watch{state = scheduled, timer_ref = TRef},
+            RecordNew = Record#watch{
+                    state = scheduled,
+                    timer_ref = TRef,
+                    timer_run = TimerRun
+                },
             {ok, RecordNew} = table_set_watch(Tab, RecordNew),
             ok;
         false ->
@@ -315,20 +333,20 @@ reschedule_watch_test() ->
     % Create a watch
     M1 = lifeguard_watch:new(),
     M2 = lifeguard_watch:set_name(M1, "foo"),
-    M3 = lifeguard_watch:set_interval(M2, 50),
+    M3 = lifeguard_watch:set_interval(M2, 100),
     Watch = M3,
 
     % Schedule it once
-    {ok, TRef} = schedule_watch(Watch),
+    {ok, TRef, _TimerRun} = schedule_watch(Watch),
 
     % Reschedule it after some small amount of time
     timer:sleep(10),
-    {ok, _TRef2} = reschedule_watch(TRef, Watch),
+    {ok, _TRef2, _TimerRun} = reschedule_watch(TRef, Watch),
 
     % Verify we get the message
     true = receive
         {run, "foo"} -> true
-    after 100 ->
+    after 150 ->
         good_timeout
     end,
 
@@ -347,7 +365,7 @@ schedule_watch_test() ->
     Watch = M3,
 
     % Schedule it
-    {ok, _TRef} = schedule_watch(Watch),
+    {ok, _TRef, _TimerRun} = schedule_watch(Watch),
 
     % Verify we get it
     true = receive
@@ -360,11 +378,11 @@ unschedule_test() ->
     % Create a watch
     M1 = lifeguard_watch:new(),
     M2 = lifeguard_watch:set_name(M1, "foo"),
-    M3 = lifeguard_watch:set_interval(M2, 50),
+    M3 = lifeguard_watch:set_interval(M2, 100),
     Watch = M3,
 
     % Schedule it
-    {ok, TRef} = schedule_watch(Watch),
+    {ok, TRef, _TimerRun} = schedule_watch(Watch),
 
     % Unschedule it!
     ok = unschedule(TRef),
@@ -372,7 +390,7 @@ unschedule_test() ->
     % Verify we never get a message
     true = receive
         Anything -> false
-    after 100 ->
+    after 150 ->
         true
     end.
 
