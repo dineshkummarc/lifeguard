@@ -82,9 +82,24 @@ init(StoragePath) ->
             watch_tab = WatchTab
         }}.
 
-handle_call({delete, Name}, _From, #state{store_pid=StorePid}=State) ->
-    lager:info("Delete watch: ~p~n", [Name]),
+handle_call({delete, Name}, _From, State) ->
+    StorePid = State#state.store_pid,
+    Tab      = State#state.watch_tab,
+
+    lager:info("Delete watch: ~p", [Name]),
+
+    % Unschedule the watch
+    lager:debug("Unscheduling watch due to delete: ~p", [Name]),
+    {ok, Record} = table_get_watch(Tab, Name),
+    ok = unschedule(Record#watch.timer_ref),
+
+    % Delete the watch from the backing store
+    lager:debug("Deleting watch from backing store: ~p", [Name]),
     Result = gen_server:call(StorePid, {delete, Name}),
+
+    % Delete the watch from the table
+    table_delete_watch(Tab, Name),
+
     {reply, Result, State};
 handle_call({get, Name}, _From, #state{store_pid=StorePid}=State) ->
     lager:info("Getting watch: ~p~n", [Name]),
@@ -230,6 +245,11 @@ table_add_watch_model(Tab, Watch) ->
     Record = model_to_record(Watch),
     table_set_watch(Tab, Record).
 
+%% @doc Deletes a watch from the in-memory table.
+table_delete_watch(Tab, ID) ->
+    true = ets:delete(Tab, ID),
+    ok.
+
 %% @doc Retrieves a watch from the table. The raw internal record format
 %% will be returned, not a lifeguard_watch model object.
 table_get_watch(Tab, ID) ->
@@ -251,6 +271,13 @@ table_populate_watches(Tab, [Watch | Rest]) ->
 %% @doc Sets the watch on the table. This will insert or update the watch.
 table_set_watch(Tab, Watch) ->
     true = ets:insert(Tab, {Watch#watch.id, Watch}),
+    ok.
+
+%% @doc Unschedules a timer reference if it is valid.
+unschedule(undefined) ->
+    ok;
+unschedule(TRef) ->
+    {ok, cancel} = timer:cancel(TRef),
     ok.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -320,13 +347,33 @@ schedule_watch_test() ->
         false
     end.
 
+unschedule_test() ->
+    % Create a watch
+    M1 = lifeguard_watch:new(),
+    M2 = lifeguard_watch:set_name(M1, "foo"),
+    M3 = lifeguard_watch:set_interval(M2, 50),
+    Watch = M3,
+
+    % Schedule it
+    {ok, TRef} = schedule_watch(Watch),
+
+    % Unschedule it!
+    ok = unschedule(TRef),
+
+    % Verify we never get a message
+    true = receive
+        Anything -> false
+    after 100 ->
+        true
+    end.
+
 % Test runner for testing all the methods that require state.
 stateful_test_() ->
     {foreach,
         fun setup/0,
         fun teardown/1,
         [
-            fun test_table_add_get_watch/1,
+            fun test_table_add_get_delete_watch/1,
             fun test_table_get_watch_nonexistent/1,
             fun test_table_populate_watches/1
         ]}.
@@ -355,7 +402,7 @@ teardown(#test_state{table=Tab, store=StorePid}) ->
     % Stop the store
     gen_server:call(StorePid, stop).
 
-test_table_add_get_watch(#test_state{table=Tab}) ->
+test_table_add_get_delete_watch(#test_state{table=Tab}) ->
     fun() ->
             % Create a model object
             W1 = lifeguard_watch:new(),
@@ -368,7 +415,11 @@ test_table_add_get_watch(#test_state{table=Tab}) ->
 
             % Verify it was added
             {ok, Record} = table_get_watch(Tab, "foo"),
-            "foo" = Record#watch.id
+            "foo" = Record#watch.id,
+
+            % Delete it
+            ok = table_delete_watch(Tab, "foo"),
+            undefined = table_get_watch(Tab, "foo")
     end.
 
 test_table_get_watch_nonexistent(#test_state{table=Tab}) ->
