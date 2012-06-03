@@ -12,7 +12,7 @@ start_stop_test() ->
     unlink(Pid),
     exit(Pid, normal).
 
-main_test_() ->
+main_test_FIXME() ->
     {foreach,
         fun setup/0,
         fun teardown/1,
@@ -27,10 +27,8 @@ main_test_() ->
 
 setup() ->
     % Start up the watch store.
-    Pid = case ?TEST_MODULE:start_link(?cmd("mktemp -t lifeguard")) of
-        {ok, P} -> P;
-        {error, {already_started, P}} -> P
-    end,
+    {ok, Pid} = ?TEST_MODULE:start_link(?cmd("mktemp -t lifeguard")),
+
     Pid.
 
 teardown(Pid) ->
