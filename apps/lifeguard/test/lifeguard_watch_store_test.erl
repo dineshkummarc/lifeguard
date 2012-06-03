@@ -4,6 +4,13 @@
 
 -define(TEST_MODULE, lifeguard_watch_store).
 
+build_watch(Name, Code, Interval) ->
+    W1 = lifeguard_watch:new(),
+    W2 = lifegaurd_watch:set_name(W1, Name),
+    W3 = lifeguard_watch:set_code(W2, Code),
+    W4 = lifeguard_watch:set_interval(W3, Interval),
+    W4.
+
 start_stop_test() ->
     % Test starting is okay.
     {ok, Pid} = ?TEST_MODULE:start_link(?cmd("mktemp -t lifeguard")),
@@ -38,7 +45,7 @@ teardown(Pid) ->
 
 test_set_watch(Pid) ->
     fun() ->
-            ok = gen_server:call(Pid, {set, "foo", "code", 5})
+            ok = gen_server:call(Pid, {set, build_watch("foo", "code", 5)})
     end.
 
 test_get_watch_nonexistent(Pid) ->
@@ -53,7 +60,7 @@ test_get_watch(Pid) ->
             Interval = 5,
 
             % Set it
-            ok = gen_server:call(Pid, {set, Name, Code, Interval}),
+            ok = gen_server:call(Pid, {set, build_watch(Name, Code, Interval)}),
 
             % Get it
             {ok, {Name, Code, Interval}} = gen_server:call(Pid, {get, Name})
@@ -65,8 +72,8 @@ test_list_watches(Pid) ->
             Interval = 5,
 
             % Set it
-            ok = gen_server:call(Pid, {set, "foo", Code, Interval}),
-            ok = gen_server:call(Pid, {set, "bar", Code, Interval}),
+            ok = gen_server:call(Pid, {set, build_watch("foo", Code, Interval)}),
+            ok = gen_server:call(Pid, {set, build_watch("bar", Code, Interval)}),
 
             % Get em
             {ok, Result} = gen_server:call(Pid, list),
@@ -83,7 +90,7 @@ test_delete_watch(Pid) ->
             Name = "foo",
 
             % Set it
-            ok = gen_server:call(Pid, {set, Name, "foo", "bar"}),
+            ok = gen_server:call(Pid, {set, build_watch(Name, "foo", "bar")}),
 
             % Delete it
             ok = gen_server:call(Pid, {delete, Name}),

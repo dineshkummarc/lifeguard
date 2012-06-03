@@ -137,7 +137,11 @@ put_watch(ReqData, Context) ->
     {name, Name} = proplists:lookup(name, Data),
     {code, Code} = proplists:lookup(code, Data),
     {interval, Interval} = proplists:lookup(interval, Data),
-    ok = lifeguard_watch_manager:set_watch(Name, Code, Interval),
+    W1 = lifeguard_watch:new(),
+    W2 = lifeguard_watch:set_name(W1, Name),
+    W3 = lifeguard_watch:set_code(W2, Code),
+    W4 = lifeguard_watch:set_interval(W3, Interval),
+    ok = lifeguard_watch_manager:set_watch(W4),
     {true, ReqData, Context}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -158,7 +162,10 @@ struct_from_watch(Watch) ->
     {struct, struct_members_for_watch(Watch)}.
 
 struct_members_for_watch(Watch) ->
-    {Name, Code, Interval} = Watch,
+    {ok, Name} = lifeguard_watch:get_name(Watch),
+    {ok, Code} = lifeguard_watch:get_code(Watch),
+    {ok, Interval} = lifeguard_watch:get_interval(Watch),
+
     [{name, Name},
      {code, Code},
      {interval, Interval}].

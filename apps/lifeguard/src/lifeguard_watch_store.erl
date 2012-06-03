@@ -1,9 +1,6 @@
 -module(lifeguard_watch_store).
 -behavior(gen_server).
--export([start_link/1,
-         watch_read_code/1,
-         watch_read_name/1,
-         watch_read_interval/1]).
+-export([start_link/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% @doc The record type that represents a Watch.
@@ -22,18 +19,6 @@
 %% @doc Start the watch store.
 start_link(StoragePath) ->
     gen_server:start_link(?MODULE, StoragePath, []).
-
-%% @doc Read the code of a watch.
-watch_read_code(#watch{code = Code}) ->
-    Code.
-
-%% @doc Read the name of a watch.
-watch_read_name(#watch{name = Name}) ->
-    Name.
-
-%% @doc Read the interval of a watch.
-watch_read_interval(#watch{interval = Interval}) ->
-    Interval.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% gen_server callbacks
@@ -57,10 +42,7 @@ handle_call({get, Name}, _From, State) ->
     lager:info("Getting watch: ~p~n", [Name]),
     Result = case internal_get_watch(Name) of
         {ok, Watch} when is_record(Watch, watch) ->
-            Name = Watch#watch.name,
-            Code = Watch#watch.code,
-            Interval = Watch#watch.interval,
-            {ok, {Name, Code, Interval}};
+            {ok, record_to_model(Watch)};
         {error, Reason} -> {error, Reason}
     end,
 
@@ -69,17 +51,14 @@ handle_call(list, _From, State) ->
     lager:info("Listing watches~n"),
 
     % Convert the internal list to some external format
-    Result = {ok, record_to_external(internal_list_watches())},
+    List   = internal_list_watches(),
+    Models = lists:map(fun record_to_model/1, List),
+    Result = {ok, Models},
     {reply, Result, State};
-handle_call({set, Name, Code, Interval}, _From, State) ->
-    lager:info("Setting watch: ~p~n", [Name]),
-    Watch = #watch{
-            name = Name,
-            code = Code,
-            interval = Interval
-        },
-
-    {reply, internal_set_watch(Watch), State};
+handle_call({set, Watch}, _From, State) ->
+    WatchRec = model_to_record(Watch),
+    lager:info("Setting watch: ~p~n", [WatchRec#watch.name]),
+    {reply, internal_set_watch(WatchRec), State};
 handle_call(stop, _From, State) ->
     {stop, normal, ok, State}.
 
@@ -117,33 +96,31 @@ internal_set_watch(#watch{name=Name} = Watch) ->
 internal_set_watch(_) ->
     {error, invalid_watch}.
 
-record_to_external(Watches) ->
-    record_to_external1(Watches, []).
+%% @doc Converts a model object to our internal record object.
+model_to_record(Watch) ->
+    {ok, Name} = lifeguard_watch:get_name(Watch),
+    {ok, Code} = lifeguard_watch:get_code(Watch),
+    {ok, Interval} = lifeguard_watch:get_interval(Watch),
 
-record_to_external1([], Acc) ->
-    Acc;
-record_to_external1([Watch | Rest], Acc) ->
-    Single = {Watch#watch.name, Watch#watch.code, Watch#watch.interval},
-    record_to_external1(Rest, [Single | Acc]).
+    #watch{
+        name = Name,
+        code = Code,
+        interval = Interval
+    }.
+
+%% @doc Converts our internal record we use to store in the DETS table to
+%% the actual lifeguard model object for a watch.
+record_to_model(Watch) when is_record(Watch, watch) ->
+    WatchRes  = lifeguard_watch:new(),
+    WatchRes2 = lifeguard_watch:set_name(WatchRes, Watch#watch.name),
+    WatchRes3 = lifeguard_watch:set_code(WatchRes2, Watch#watch.code),
+    lifeguard_watch:set_interval(WatchRes3, Watch#watch.interval).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Tests for internal methods
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -ifdef(TEST).
-
-% Test the referentially transparent stuff
-watch_read_code_test() ->
-    Watch = #watch{code = "code"},
-    "code" = watch_read_code(Watch).
-
-watch_read_interval_test() ->
-    Watch = #watch{interval = 24},
-    24 = watch_read_interval(Watch).
-
-watch_read_name_test() ->
-    Watch = #watch{name = "Foo"},
-    "Foo" = watch_read_name(Watch).
 
 % Test runner for testing all the methods that requires a dets table
 % that stores watches.
@@ -157,7 +134,8 @@ main_test_() ->
             fun test_get_watch_nonexistent/1,
             fun test_list_watch_empty/1,
             fun test_list_watch_single/1,
-            fun test_record_to_external_list/1,
+            fun test_model_to_record/1,
+            fun test_record_to_model/1,
             fun test_set_watch_invalid/1,
             fun test_set_and_get_watch/1,
             fun test_update_watch/1
@@ -207,14 +185,26 @@ test_list_watch_single(_) ->
             Watch = Result
     end.
 
-test_record_to_external_list(_) ->
+test_model_to_record(_) ->
     fun() ->
-            % Test the single case
-            [] = record_to_external([]),
+            M1 = lifeguard_watch:new(),
+            M2 = lifeguard_watch:set_name(M1, "foo"),
+            M3 = lifeguard_watch:set_code(M2, "bar"),
+            M4 = lifeguard_watch:set_interval(M3, 5),
 
-            % Test when we have a watch
-            Watch1  = #watch{name="foo", code="bar", interval=1},
-            [{"foo", "bar", 1}] = record_to_external([Watch1])
+            Rec = model_to_record(M4),
+            "foo" = Rec#watch.name,
+            "bar" = Rec#watch.code,
+            5     = Rec#watch.interval
+    end.
+
+test_record_to_model(_) ->
+    fun() ->
+            Record = #watch{name="foo", code="bar", interval=5},
+            Watch  = record_to_model(Record),
+            {ok, "foo"} = lifeguard_watch:get_name(Watch),
+            {ok, "bar"} = lifeguard_watch:get_code(Watch),
+            {ok, 5}     = lifeguard_watch:get_interval(Watch)
     end.
 
 test_set_watch_invalid(_) ->

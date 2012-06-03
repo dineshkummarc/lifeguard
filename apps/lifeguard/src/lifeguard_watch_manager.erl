@@ -7,7 +7,7 @@
          delete_watch/1,
          get_watch/1,
          list_watches/0,
-         set_watch/3]).
+         set_watch/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% @doc This is the internal state of our gen_server.
@@ -51,9 +51,9 @@ list_watches() ->
     gen_server:call(?MODULE, list).
 
 %% @doc Add or update an existing watch.
--spec set_watch(string(), string(), pos_integer()) -> ok | {error, term()}.
-set_watch(Name, Code, Interval) ->
-    gen_server:call(?MODULE, {set, Name, Code, Interval}).
+-spec set_watch(term()) -> ok | {error, term()}.
+set_watch(Watch) ->
+    gen_server:call(?MODULE, {set, Watch}).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% gen_server callbacks
@@ -90,9 +90,9 @@ handle_call(list, _From, #state{store_pid=StorePid}=State) ->
     lager:info("Listing watches~n"),
     Result = gen_server:call(StorePid, list),
     {reply, Result, State};
-handle_call({set, Name, Code, Interval}, _From, #state{store_pid=StorePid}=State) ->
-    lager:info("Setting watch: ~p~n", [Name]),
-    Result = gen_server:call(StorePid, {set, Name, Code, Interval}),
+handle_call({set, Watch}, _From, #state{store_pid=StorePid}=State) ->
+    lager:info("Setting watch: ~p~n", [lifeguard_watch:get_name(Watch)]),
+    Result = gen_server:call(StorePid, {set, Watch}),
     {reply, Result, State}.
 
 handle_cast(_Request, State) -> {noreply, State}.
