@@ -28,11 +28,14 @@ init([Number]) ->
     {ok, VM} = erlv8_vm:start(),
     init_vm_globals(VM),
 
+    % Create our state
     State = #vm_state{
         id = Number,
         vm = VM
     },
 
+    % Mark ourselves as idle, ready to receive work
+    set_idle(State#vm_state.id),
     {ok, State}.
 
 handle_call(_Request, _From, State) -> {noreply, State}.
@@ -60,3 +63,6 @@ init_vm_globals(VM) ->
 
     % Add the builtins to this VM runtime
     {ok, _} = erlv8_vm:run(VM, binary_to_list(JSData)).
+
+set_idle(VMID) ->
+    lifeguard_js_manager:idle_vm(VMID).

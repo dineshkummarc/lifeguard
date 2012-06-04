@@ -1,24 +1,29 @@
 -module(lifeguard_js_manager_sup).
 -behavior(supervisor).
--export([start_link/1, init/1]).
+-export([start_link/2, init/1]).
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
-start_link(VMCount) ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, VMCount).
+start_link(VMCount, PendingLimit) ->
+    supervisor:start_link({local, ?MODULE}, ?MODULE, [VMCount, PendingLimit]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Supervisor Callbacks
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-init(VMCount) ->
+init([VMCount, PendingLimit]) ->
+    % Manager which orchestrates JS VM usage
+    Manager = {js_manager,
+        {lifeguard_js_manager, start_link, [PendingLimit]},
+        permanent, 5000, worker, dynamic},
+
     % Start a JavaScript VM up to the max given...
     VMSpecs = vm_specs(VMCount),
 
     % Return the supervisor spec
-    {ok, {{one_for_one, 10, 60}, VMSpecs}}.
+    {ok, {{one_for_one, 10, 60}, [Manager | VMSpecs]}}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Internal Functions

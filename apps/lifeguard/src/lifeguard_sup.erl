@@ -24,11 +24,12 @@ start_link() ->
 
 init([]) ->
     % Get the data sources from the application configuration
-    {ok, DataSources} = application:get_env(data_sources),
-    {ok, JsVMCount}   = application:get_env(js_vm_count),
-    {ok, StoragePath} = application:get_env(storage_path),
-    {ok, HTTPIP}      = application:get_env(http_ip),
-    {ok, HTTPPort}    = application:get_env(http_port),
+    {ok, DataSources}    = application:get_env(data_sources),
+    {ok, JsPendingLimit} = application:get_env(js_pending_limit),
+    {ok, JsVMCount}      = application:get_env(js_vm_count),
+    {ok, StoragePath}    = application:get_env(storage_path),
+    {ok, HTTPIP}         = application:get_env(http_ip),
+    {ok, HTTPPort}       = application:get_env(http_port),
 
     % Get the configuration for the web API
     DispatchPath   = filename:join(code:priv_dir(lifeguard), "dispatch.config"),
@@ -47,7 +48,7 @@ init([]) ->
 
     % JS VM manager supervisor
     JsManager = {js_manager_sup,
-        {lifeguard_js_manager_sup, start_link, [JsVMCount]},
+        {lifeguard_js_manager_sup, start_link, [JsVMCount, JsPendingLimit]},
         permanent, 30000, supervisor, dynamic},
 
     % Watch manager
