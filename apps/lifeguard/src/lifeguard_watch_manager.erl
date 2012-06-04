@@ -7,7 +7,8 @@
          delete_watch/1,
          get_watch/1,
          list_watches/0,
-         set_watch/1]).
+         set_watch/1,
+         vm_msg/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% @doc This is the internal state of our gen_server.
@@ -20,6 +21,7 @@
 %% stores every watch it is responsible for in memory in this structure.
 -record(watch, {
         id,        % ID of the watch
+        result,    % Result of the watch
         state,     % State of the watch
         timer_ref, % Reference for the timer if it is waiting
         timer_at   % The time when the timer should run within reasonable error bounds
@@ -55,6 +57,10 @@ list_watches() ->
 -spec set_watch(term()) -> ok | {error, term()}.
 set_watch(Watch) ->
     gen_server:call(?MODULE, {set, Watch}).
+
+%% @doc Sends a message that came froma JS VM.
+vm_msg(Message) ->
+    gen_server:cast(?MODULE, {vm_msg, Message}).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% gen_server callbacks
@@ -160,7 +166,26 @@ handle_call({set, Watch}, _From, #state{store_pid=StorePid, watch_tab=Tab} = Sta
 
     {reply, {ok, Result}, State}.
 
-handle_cast(_Request, State) -> {noreply, State}.
+handle_cast({vm_msg, {running, ID}}, State) ->
+    Tab = State#state.watch_tab,
+    {ok, Watch} = table_get_watch(Tab, ID),
+
+    % Mark that this watch is running
+    lager:info("Updating state of watch '~p' to 'running'", [ID]),
+    NewWatch = Watch#watch{state = running},
+    table_set_watch(Tab, NewWatch),
+
+    {noreply, State};
+handle_cast({vm_msg, {complete, ID, Result}}, State) ->
+    Tab = State#state.watch_tab,
+    {ok, Watch} = table_get_watch(Tab, ID),
+
+    % Update the result state of this watch
+    lager:info("Watch run completed for '~p'. Result: ~p", [ID, Result]),
+    NewWatch = Watch#watch{state = scheduled, result = Result},
+    table_set_watch(Tab, NewWatch),
+
+    {noreply, State}.
 
 handle_info({run, ID}, State) ->
     StorePid = State#state.store_pid,
@@ -172,7 +197,10 @@ handle_info({run, ID}, State) ->
 
     % Reschedule it immediately
     {ok, TRef, TimerAt} = reschedule_watch(Record#watch.timer_ref, Watch),
+
+    % Save some new state for this watch
     RecordNew  = Record#watch{
+            state     = queued,
             timer_ref = TRef,
             timer_at  = TimerAt
         },
@@ -184,7 +212,8 @@ handle_info({run, ID}, State) ->
     {noreply, State};
 handle_info(_Request, State) -> {noreply, State}.
 
-terminate(_Reason, #state{store_pid=StorePid, watch_tab=Tab}) ->
+terminate(Reason, #state{store_pid=StorePid, watch_tab=Tab}) ->
+    lager:info("Terminating watch manager: ~p", [Reason]),
     lager:debug("Terminating the watch store..."),
     gen_server:call(StorePid, stop),
 
@@ -204,6 +233,7 @@ model_to_record(Watch) ->
     {ok, ID} = lifeguard_watch:get_name(Watch),
     #watch{
         id = ID,
+        result = undefined,
         state = idle,
         timer_ref = undefined,
         timer_at  = undefined

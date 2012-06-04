@@ -48,7 +48,15 @@ handle_cast({run_watch, Watch, _From}, State) ->
     {ok, Name} = lifeguard_watch:get_name(Watch),
     lager:info("Running watch in VM: ~p", [Name]),
 
-    % Tell the manager that we're ready for more work!
+    % Notify the manager that we're running
+    lifeguard_watch_manager:vm_msg({running, Name}),
+
+    % Pretend we're running for now...
+    timer:sleep(10000),
+
+    % Tell the watch manager the results of the run, and then notify
+    % the VM manager that we're ready for more work!
+    lifeguard_watch_manager:vm_msg({complete, Name, success}),
     set_idle(State#vm_state.id),
     {noreply, State}.
 
