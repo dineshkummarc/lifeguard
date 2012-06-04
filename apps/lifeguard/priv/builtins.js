@@ -3,10 +3,10 @@
     // to call back into Erlang.
     var Lifeguard = this.Lifeguard = {
         // This is a result type representing that the watch is in good health.
-        GOOD: "good",
+        HEALTHY: "healthy",
 
         // This is a result type representing that the watch is in bad health.
-        BAD: "bad",
+        UNHEALTHY: "unhealthy",
 
         // This is a result type representing that the watch is in an
         // unknown state.

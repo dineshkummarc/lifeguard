@@ -246,7 +246,7 @@ model_to_record(Watch) ->
     {ok, ID} = lifeguard_watch:get_name(Watch),
     #watch{
         id = ID,
-        result = undefined,
+        result = unknown,
         state = idle,
         timer_ref = undefined,
         timer_at  = undefined

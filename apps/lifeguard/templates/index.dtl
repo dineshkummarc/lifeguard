@@ -7,7 +7,7 @@
 
 {% block js_templates %}
 <script type="text/html" id="watch-dashboard-unit-template">
-<div class="unit healthy"><%= name %></div>
+<div class="unit <%= result %>"><%= name %></div>
 </script>
 {% endblock %}
 

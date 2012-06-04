@@ -7,7 +7,7 @@ var Watch = Backbone.Model.extend({
         "code": "",
         "interval": "",
         "state": "unknown",
-        "result": null,
+        "result": "unknown",
         "timer_at": null
     }
 });
