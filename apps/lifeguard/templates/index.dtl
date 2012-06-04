@@ -1,7 +1,7 @@
 {% extends "base.dtl" %}
 
 {% block body %}
-<div class="Module dashboard">
+<div class="Module dashboard" id="watches-dashboard">
 	<div class="unit healthy">Foo</div>
 	<div class="unit healthy">Bar</div>
 	<div class="unit unhealthy">Bar</div>
@@ -13,4 +13,8 @@
 	<div class="unit healthy">Bar</div>
 	<div class="unit healthy">Bar</div>
 </div>
+{% endblock %}
+
+{% block body_footer %}
+
 {% endblock %}

@@ -34,7 +34,12 @@
 
 		<script src="/static/js/dbg.js"></script>
 		<script src="/static/js/Lifeguard/DataSources.js"></script>
+		<script src="/static/js/Lifeguard/Watch.js"></script>
 		<script src="/static/js/Lifeguard/Watches.js"></script>
+		<script src="/static/js/Lifeguard/WatchFormView.js"></script>
+		<script src="/static/js/Lifeguard/WatchListView.js"></script>
+		<script src="/static/js/Lifeguard/WatchRouter.js"></script>
+		<script src="/static/js/Lifeguard/WatchView.js"></script>
 		{% block body_footer %}{% endblock %}
 
 		<script type="text/javascript">
