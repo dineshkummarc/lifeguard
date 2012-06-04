@@ -27,6 +27,7 @@
 					<th>Name</th>
 					<th>Interval (ms)</th>
                     <th>Next Run</th>
+                    <th>Last Result</th>
 					<th>Options</th>
 				</tr>
 			</thead>
@@ -47,6 +48,7 @@
 <td><%= name %></td>
 <td><%= interval %></td>
 <td><%= timer_at %></td>
+<td><%= result %></td>
 <td>
   <a href="#" class="btn btn-mini edit">
     <i class="icon-wrench"></i>

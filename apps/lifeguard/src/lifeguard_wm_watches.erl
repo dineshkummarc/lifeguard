@@ -166,7 +166,13 @@ struct_members_for_watch(Watch) ->
     {ok, Code} = lifeguard_watch:get_code(Watch),
     {ok, Interval} = lifeguard_watch:get_interval(Watch),
     {ok, Transient} = lifeguard_watch:get_transient(Watch),
+
+    % Get the transient data
     {state, State}  = proplists:lookup(state, Transient),
+    Result  = case proplists:lookup(result, Transient) of
+        {result, undefined} -> null;
+        {result, ResultValue} -> ResultValue
+    end,
     TimerAt = case proplists:lookup(timer_at, Transient) of
         {timer_at, undefined} -> null;
         {timer_at, Timestamp} -> Timestamp
@@ -176,6 +182,7 @@ struct_members_for_watch(Watch) ->
      {code, Code},
      {interval, Interval},
      {state, State},
+     {result, Result},
      {timer_at, TimerAt}].
 
 validate_struct(Struct) ->

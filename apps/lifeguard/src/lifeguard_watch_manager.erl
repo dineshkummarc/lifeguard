@@ -21,7 +21,7 @@
 %% stores every watch it is responsible for in memory in this structure.
 -record(watch, {
         id,        % ID of the watch
-        result,    % Result of the watch
+        result,    % Result of the watch's last run
         state,     % State of the watch
         timer_ref, % Reference for the timer if it is waiting
         timer_at   % The time when the timer should run within reasonable error bounds
@@ -381,7 +381,11 @@ unschedule(TRef) ->
 %% @doc Takes our metadata record and a watch model and appends the transient
 %% data to it, returning a new watch model.
 watch_append_transient(Record, Watch) ->
-    Transient = [{state, Record#watch.state}, {timer_at, Record#watch.timer_at}],
+    Transient = [
+            {result, Record#watch.result},
+            {state, Record#watch.state},
+            {timer_at, Record#watch.timer_at}
+        ],
     lifeguard_watch:set_transient(Watch, Transient).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
