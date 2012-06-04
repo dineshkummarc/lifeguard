@@ -191,24 +191,37 @@ handle_info({run, ID}, State) ->
     StorePid = State#state.store_pid,
     Tab = State#state.watch_tab,
 
-    % Get the record we want to run, along with its associated watch
+    % Get the record and watch
     {ok, Record} = table_get_watch(Tab, ID),
     {ok, Watch}  = store_get_watch(StorePid, ID),
 
-    % Reschedule it immediately
+    % Reschedule immediately, despite whether we are actually going to run
+    % or not, since we want to remain on the same interval if possible.
     {ok, TRef, TimerAt} = reschedule_watch(Record#watch.timer_ref, Watch),
-
-    % Save some new state for this watch
-    RecordNew  = Record#watch{
-            state     = queued,
+    Record2  = Record#watch{
             timer_ref = TRef,
             timer_at  = TimerAt
         },
-    table_set_watch(Tab, RecordNew),
+    {ok, Record2} = table_set_watch(Tab, Record2),
 
-    % Run the thing
-    lager:info("Run: ~p", [ID]),
-    lifeguard_js_manager:run_watch(Watch),
+    % Now we need to determine whether we're actually going to run or not.
+    % More details in the individual case clauses.
+    case Record2#watch.state of
+        scheduled ->
+            % Okay, we're "scheduled" which means we're just waiting to run,
+            % so let's run it. First, let's update our state to queued, so
+            % that we don't attempt to run it again.
+            Record3 = Record2#watch{state = queued},
+            {ok, Record3} = table_set_watch(Tab, Record3),
+
+            % Now actually dispatch the task to the JS VMs
+            lager:info("Run: ~p", [ID]),
+            lifeguard_js_manager:run_watch(Watch);
+        OtherState ->
+            % We're in some non-scheduled state, so we don't run, but log it out.
+            lager:info("Not running watch '~p', in non-scheduled state: ~p", [ID, OtherState])
+    end,
+
     {noreply, State};
 handle_info(_Request, State) -> {noreply, State}.
 
