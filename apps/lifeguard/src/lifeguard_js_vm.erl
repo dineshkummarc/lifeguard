@@ -4,13 +4,21 @@
          dispatch/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
+% The number of watches we run before forcing a GC run
+-define(GC_TICKS, 256).
+
+% The number of watches we run before we recycle the entire
+% V8 VM just in case there are memory leaks.
+-define(MAX_TICKS, 32768).
+
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
 -record(vm_state, {
-        id, % ID of the VM
-        vm  % Actual V8 VM
+        id,   % ID of the VM
+        vm,   % Actual V8 VM
+        ticks % Number of ticks we've ran so far
     }).
 
 %% @doc Start the JS VM under a supervision tree.
@@ -35,7 +43,8 @@ init([Number]) ->
     % Create our state
     State = #vm_state{
         id = Number,
-        vm = VM
+        vm = VM,
+        ticks = 0
     },
 
     % Mark ourselves as idle, ready to receive work
@@ -54,7 +63,7 @@ handle_cast({run_watch, Watch, _From}, State) ->
     % Call into JavaScript!
     Global = erlv8_vm:global(State#vm_state.vm),
     JS_Lifeguard = Global:get_value("Lifeguard"),
-    case JS_Lifeguard:get_value("_call") of
+    Result = case JS_Lifeguard:get_value("_call") of
         undefined ->
             % XXX: Crash the process here?
             lager:error("SEVERE ERROR: _call method not found in JS VM."),
@@ -69,21 +78,28 @@ handle_cast({run_watch, Watch, _From}, State) ->
                     ErrMessage = ErrVal:get_value("message"),
                     ErrStack = ErrVal:get_value("stack"),
                     lager:warning("Error in JS: ~p ~p", [ErrMessage, ErrStack]),
-                    err;
+                    error;
                 {throw, Other} ->
                     lager:error("Unknown JS VM error: ~p", [Other]),
-                    err;
+                    error;
                 Object ->
-                    lager:info("JS RESULT: ~p", [Object:get_value("result")]),
-                    ok
+                    ResultString = Object:get_value("result"),
+                    ResultAtom   = binary_to_atom(ResultString, utf8),
+                    lager:info("JS RESULT: ~p", [ResultAtom]),
+                    ResultAtom
             end
     end,
 
-    % Tell the watch manager the results of the run, and then notify
-    % the VM manager that we're ready for more work!
-    lifeguard_watch_manager:vm_msg({complete, Name, success}),
+    % Tell the watch manager the results of the run so it can do what
+    % it needs with it.
+    lifeguard_watch_manager:vm_msg({complete, Name, Result}),
+
+    % Increment a tick, which controls our GC and memory usage of V8
+    NewState = increment_ticks(State),
+
+    % Notify the JS manager that we're idle and ready for more work
     set_idle(State#vm_state.id),
-    {noreply, State}.
+    {noreply, NewState}.
 
 handle_info(_Request, State) -> {noreply, State}.
 
@@ -98,6 +114,32 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Internal functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+increment_ticks(State) ->
+    NewTicks = State#vm_state.ticks + 1,
+    if
+        NewTicks >= ?MAX_TICKS ->
+            % The MAX_TICKS are reached, which is our limit in trusting
+            % erlv8 with memory management, so we just recycle the entire
+            % VM, to be safe. This doesn't happen that often so its not
+            % a big hit on performance.
+            lager:debug("VM ~p MAX_TICKS reached. Recycling.", [State#vm_state.id]),
+            erlv8_vm:stop(State#vm_state.vm),
+            {ok, VM} = erlv8_vm:start(),
+            init_vm_globals(VM),
+            State#vm_state{vm=VM, ticks=0};
+
+        NewTicks >= ?GC_TICKS ->
+            % The GC_TICKS are reached, which is our limit before we
+            % invoke the GC.
+            lager:debug("VM ~p GC_TICKS reached. GC running.", [State#vm_state.id]),
+            erlv8_vm:gc(State#vm_state.vm),
+            State#vm_state{ticks=0};
+
+        true ->
+            % Otherwise, just increment the ticks
+            State#vm_state{ticks=NewTicks}
+    end.
 
 init_vm_globals(VM) ->
     % Load our builtins
