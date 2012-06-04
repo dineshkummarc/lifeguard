@@ -4,7 +4,8 @@
 -module(lifeguard_js_manager).
 -behavior(gen_server).
 -export([start_link/1,
-         idle_vm/1]).
+         idle_vm/1,
+         run_watch/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -record(state, {
@@ -25,6 +26,10 @@ start_link(PendingLimit) ->
 idle_vm(VMID) ->
     gen_server:cast(?MODULE, {idle_vm, VMID}).
 
+%% @doc Runs the given watch.
+run_watch(Watch) ->
+    gen_server:call(?MODULE, {run_watch, Watch}).
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% gen_server callbacks
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -37,8 +42,19 @@ init(PendingLimit) ->
             pending_limit = PendingLimit
         }}.
 
-handle_call(stop, _From, State) ->
-    {stop, normal, ok, State}.
+% Runs a watch.
+handle_call({run_watch, Watch}, From, State) ->
+    case State#state.idle_workers of
+        [] ->
+            % No idle workers.
+            % TODO: Pending, eventually, for now we just error.
+            lager:error("No available JavaScript VMs."),
+            {reply, {error, over_capacity}, State};
+        [VMID | IdleVMs] ->
+            % We have an idle VM, so assign the watch to run in it.
+            lifeguard_js_vm:dispatch(VMID, {run_watch, Watch, From}),
+            {reply, ok, State#state{idle_workers=IdleVMs}}
+    end.
 
 % Signals that a JS VM has become idle. This will add that VM to the
 % list of idle workers.

@@ -178,6 +178,7 @@ handle_info({run, ID}, State) ->
 
     % Run the thing
     lager:info("Run: ~p", [ID]),
+    lifeguard_js_manager:run_watch(Watch),
     {noreply, State};
 handle_info(_Request, State) -> {noreply, State}.
 

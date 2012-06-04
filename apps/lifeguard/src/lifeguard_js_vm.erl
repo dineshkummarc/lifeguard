@@ -1,6 +1,7 @@
 -module(lifeguard_js_vm).
 -behavior(gen_server).
--export([start_link/1]).
+-export([start_link/1,
+         dispatch/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -ifdef(TEST).
@@ -14,8 +15,11 @@
 
 %% @doc Start the JS VM under a supervision tree.
 start_link(Number) ->
-    ServerRef = list_to_atom("js_vm_" ++ integer_to_list(Number)),
-    gen_server:start_link({local, ServerRef}, ?MODULE, [Number], []).
+    gen_server:start_link({local, vmid(Number)}, ?MODULE, [Number], []).
+
+%% @doc Dispatches a method to the proper VM.
+dispatch(VMID, Message) ->
+    gen_server:cast(vmid(VMID), Message).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% gen_server callbacks
@@ -40,7 +44,13 @@ init([Number]) ->
 
 handle_call(_Request, _From, State) -> {noreply, State}.
 
-handle_cast(_Request, State) -> {noreply, State}.
+handle_cast({run_watch, Watch, _From}, State) ->
+    {ok, Name} = lifeguard_watch:get_name(Watch),
+    lager:info("Running watch in VM: ~p", [Name]),
+
+    % Tell the manager that we're ready for more work!
+    set_idle(State#vm_state.id),
+    {noreply, State}.
 
 handle_info(_Request, State) -> {noreply, State}.
 
@@ -66,3 +76,6 @@ init_vm_globals(VM) ->
 
 set_idle(VMID) ->
     lifeguard_js_manager:idle_vm(VMID).
+
+vmid(Number) ->
+    list_to_atom("js_vm_" ++ integer_to_list(Number)).
