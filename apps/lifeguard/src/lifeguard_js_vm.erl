@@ -51,8 +51,33 @@ handle_cast({run_watch, Watch, _From}, State) ->
     % Notify the manager that we're running
     lifeguard_watch_manager:vm_msg({running, Name}),
 
-    % Pretend we're running for now...
-    timer:sleep(10000),
+    % Call into JavaScript!
+    Global = erlv8_vm:global(State#vm_state.vm),
+    JS_Lifeguard = Global:get_value("Lifeguard"),
+    case JS_Lifeguard:get_value("_call") of
+        undefined ->
+            % XXX: Crash the process here?
+            lager:error("SEVERE ERROR: _call method not found in JS VM."),
+            error;
+
+        JS_CallMethod ->
+            % We found our call method, so we call it with the code
+            % of the watch.
+            {ok, Code} = lifeguard_watch:get_code(Watch),
+            case JS_CallMethod:call([Code]) of
+                {throw, {error, ErrVal}} ->
+                    ErrMessage = ErrVal:get_value("message"),
+                    ErrStack = ErrVal:get_value("stack"),
+                    lager:warning("Error in JS: ~p ~p", [ErrMessage, ErrStack]),
+                    err;
+                {throw, Other} ->
+                    lager:error("Unknown JS VM error: ~p", [Other]),
+                    err;
+                Object ->
+                    lager:info("JS RESULT: ~p", [Object:get_value("result")]),
+                    ok
+            end
+    end,
 
     % Tell the watch manager the results of the run, and then notify
     % the VM manager that we're ready for more work!
@@ -63,7 +88,7 @@ handle_cast({run_watch, Watch, _From}, State) ->
 handle_info(_Request, State) -> {noreply, State}.
 
 terminate(_Reason, State) ->
-    lager:info("JS VM stopped; ~d", [State#vm_state.id]),
+    lager:info("JS VM stopped: ~p", [State#vm_state.id]),
 
     % Stop the V8 VM
     erlv8_vm:stop(State#vm_state.vm).
