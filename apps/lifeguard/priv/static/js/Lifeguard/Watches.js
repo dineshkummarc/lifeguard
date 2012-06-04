@@ -5,7 +5,8 @@ var Watch = Backbone.Model.extend({
     defaults: {
         "name": "<unknown>",
         "code": "",
-        "interval": ""
+        "interval": "",
+        "timer_at": null
     }
 });
 

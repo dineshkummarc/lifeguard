@@ -141,7 +141,7 @@ put_watch(ReqData, Context) ->
     W2 = lifeguard_watch:set_name(W1, Name),
     W3 = lifeguard_watch:set_code(W2, Code),
     W4 = lifeguard_watch:set_interval(W3, Interval),
-    ok = lifeguard_watch_manager:set_watch(W4),
+    {ok, _Watch} = lifeguard_watch_manager:set_watch(W4),
     {true, ReqData, Context}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

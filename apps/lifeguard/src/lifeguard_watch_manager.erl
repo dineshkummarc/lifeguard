@@ -143,7 +143,7 @@ handle_call({set, Watch}, _From, #state{store_pid=StorePid, watch_tab=Tab} = Sta
 
     % Save the watch to the backing store
     lager:debug("Storing watch in backing store..."),
-    Result = gen_server:call(StorePid, {set, Watch}),
+    ok = gen_server:call(StorePid, {set, Watch}),
 
      % Schedule this watch if it isn't already scheduled
     Record = case table_get_watch(Tab, ID) of
@@ -153,10 +153,12 @@ handle_call({set, Watch}, _From, #state{store_pid=StorePid, watch_tab=Tab} = Sta
             {ok, Rec} = table_add_watch_model(Tab, Watch),
             Rec
     end,
+    {ok, RecordNew} = schedule_watch_if_needed(Tab, StorePid, Record),
 
-    ok = schedule_watch_if_needed(Tab, StorePid, Record),
+    % Append any extra info for the result
+    Result = watch_append_transient(RecordNew, Watch),
 
-    {reply, Result, State}.
+    {reply, {ok, Result}, State}.
 
 handle_cast(_Request, State) -> {noreply, State}.
 
@@ -252,7 +254,7 @@ schedule_watch_if_needed(Tab, StorePid, Record) ->
         _Other -> false
     end,
 
-    ok = case Needed of
+    case Needed of
         true ->
             % We need to schedule
             {ok, Watch} = store_get_watch(StorePid, ID),
@@ -264,14 +266,11 @@ schedule_watch_if_needed(Tab, StorePid, Record) ->
                     timer_ref = TRef,
                     timer_at  = TimerAt
                 },
-            {ok, RecordNew} = table_set_watch(Tab, RecordNew),
-            ok;
+            table_set_watch(Tab, RecordNew);
         false ->
             % It doesn't need scheduling, just return
-            ok
-    end,
-
-    ok.
+            {ok, Record}
+    end.
 
 %% @doc Schedules an entire table of watches.
 schedule_watch_table(Tab, StorePid) ->
