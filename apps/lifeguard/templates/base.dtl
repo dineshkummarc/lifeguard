@@ -36,6 +36,8 @@
 		<script src="/static/js/Lifeguard/DataSources.js"></script>
 		<script src="/static/js/Lifeguard/Watch.js"></script>
 		<script src="/static/js/Lifeguard/Watches.js"></script>
+		<script src="/static/js/Lifeguard/WatchDashboardUnitView.js"></script>
+		<script src="/static/js/Lifeguard/WatchDashboardView.js"></script>
 		<script src="/static/js/Lifeguard/WatchFormView.js"></script>
 		<script src="/static/js/Lifeguard/WatchListView.js"></script>
 		<script src="/static/js/Lifeguard/WatchRouter.js"></script>

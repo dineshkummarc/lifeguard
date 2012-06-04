@@ -2,19 +2,17 @@
 
 {% block body %}
 <div class="Module dashboard" id="watches-dashboard">
-	<div class="unit healthy">Foo</div>
-	<div class="unit healthy">Bar</div>
-	<div class="unit unhealthy">Bar</div>
-	<div class="unit healthy">Bar</div>
-	<div class="unit unknown">Bar</div>
-	<div class="unit healthy">Bar</div>
-	<div class="unit healthy">Bar</div>
-	<div class="unit unhealthy">Bar</div>
-	<div class="unit healthy">Bar</div>
-	<div class="unit healthy">Bar</div>
 </div>
 {% endblock %}
 
-{% block body_footer %}
+{% block js_templates %}
+<script type="text/html" id="watch-dashboard-unit-template">
+<div class="unit healthy"><%= name %></div>
+</script>
+{% endblock %}
 
+{% block body_footer %}
+<script type="text/javascript">
+new WatchDashboardView({ collection: new Watches() });
+</script>
 {% endblock %}
