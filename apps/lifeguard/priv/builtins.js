@@ -5,8 +5,13 @@
         // This is a result type representing that the watch is in good health.
         HEALTHY: "healthy",
 
-        // This is a result type representing that the watch is in bad health.
-        UNHEALTHY: "unhealthy",
+        // This is a result type representing that the watch is in some sort
+        // of "warning" state.
+        WARNING: "warning",
+
+        // This is a result type representing that the watch is in a critical
+        // erroneous state.
+        CRITICAL: "critical",
 
         // This is a result type representing that the watch is in an
         // unknown state.

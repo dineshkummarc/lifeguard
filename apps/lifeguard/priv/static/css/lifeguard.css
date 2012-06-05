@@ -84,13 +84,13 @@ ul#data-sources-list, ul#data-sources-list li {
     color: #468847;
 }
 
-.Module.dashboard .unit.unhealthy {
+.Module.dashboard .unit.critical {
     background-color: #F2DEDE;
     border-color: #EED3D7;
     color: #B94A48;
 }
 
-.Module.dashboard .unit.unknown {
+.Module.dashboard .unit.unknown, .Module.dashboard .unit.warning {
     background-color: #FCF8E3;
     border-color: #FBEED5;
     color: #C09853;
