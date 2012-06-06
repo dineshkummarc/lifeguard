@@ -11,6 +11,8 @@
 % V8 VM just in case there are memory leaks.
 -define(MAX_TICKS, 32768).
 
+-include_lib("erlv8/include/erlv8.hrl").
+
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
@@ -147,10 +149,79 @@ init_vm_globals(VM) ->
     {ok, JSData} = file:read_file(Path),
 
     % Add the builtins to this VM runtime
-    {ok, _} = erlv8_vm:run(VM, binary_to_list(JSData)).
+    {ok, _} = erlv8_vm:run(VM, binary_to_list(JSData)),
+
+    % Override some of the Lifeguard object methods with Erlang
+    % implementations.
+    ErlangJSMethods = [
+            {"_erl_get", fun(_, Args) -> js_get(Args) end}
+        ],
+
+    Global = erlv8_vm:global(VM),
+    Lifeguard = Global:get_value("Lifeguard"),
+    lists:foreach(fun({Name, Method}) ->
+                Lifeguard:set_value(Name, Method)
+        end, ErlangJSMethods).
+
+%% @doc Converts an array of JavaScript values into Erlang values. Arrays
+%% are turned into lists, objects are turned into proplists.
+js_convert_args(Args) ->
+    js_convert_args1([], Args).
+js_convert_args1(Result, []) ->
+    Result;
+js_convert_args1(Result, [Arg | Args]) ->
+    lager:debug("Converting JS value to Erlang: ~p", [Arg]),
+    Converted = js_convert_value(Arg),
+    js_convert_args1([Converted | Result], Args).
+
+%% @doc Converts a single JavaScript value to an Erlang value. Arrays are
+%% turned into lists, objects are turned into proplists. This will automatically
+%% recurse into objects.
+%%
+%% XXX: Handle circular references by keeping track of "depth"
+js_convert_value(Atom) when is_atom(Atom) ->
+    % Atoms can be: null, false, true. We just let these be
+    Atom;
+js_convert_value(Number) when is_number(Number) ->
+    % Numbers are just numbers, let them be
+    Number;
+js_convert_value(String) when is_binary(String) ->
+    % Binaries are just strings, let them be
+    String;
+js_convert_value(Object) when is_record(Object, erlv8_object) ->
+    % Convert the V8 object into an Erlang proplist
+    Object:proplist();
+js_convert_value(Object) when is_record(Object, erlv8_array) ->
+    % Convert the V8 array into an Erlang list
+    Object:list();
+js_convert_value(Other) ->
+    lager:error("Unknown JS type: ~p", [Other]),
+    unknown.
+
+%% @doc Gets values from a data source and returns them back to JavaScript.
+%% This method is the implementation of a function called from JavaScript.
+js_get([DataSource, Args]) ->
+    % Convert the array of JavaScript arguments to Erlang values
+    ErlArgs = js_convert_args(Args:list()),
+    lager:info("Get: ~p ~p", [DataSource, ErlArgs]).
 
 set_idle(VMID) ->
     lifeguard_js_manager:idle_vm(VMID).
 
 vmid(Number) ->
     list_to_atom("js_vm_" ++ integer_to_list(Number)).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Tests
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+-ifdef(TEST).
+
+js_convert_value_test() ->
+    null = js_convert_value(null),
+    true = js_convert_value(true),
+    false = js_convert_value(false),
+    <<"foo">> = js_convert_value(<<"foo">>),
+    unknown = js_convert_value([]).
+
+-endif.
