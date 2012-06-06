@@ -21,6 +21,10 @@
         // of the data source to retrieve values from. Any additional arguments
         // will be passed through directly to the data source.
         get: function(data_source) {
+            if (typeof(data_source) !== "string") {
+                throw new Error("Data source name must be a string.");
+            }
+
             var ds_args = Array.prototype.slice.call(arguments, 1, arguments.length);
             return Lifeguard._erl_get(data_source, ds_args);
         },
