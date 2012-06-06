@@ -38,6 +38,18 @@
         //
         // `result` should be one of: Lifeguard.GOOD, Lifeguard.BAD.
         setResult: function(result, message) {
+            var valid = [
+                Lifeguard.HEALTHY,
+                Lifeguard.CRITICAL,
+                Lifeguard.WARNING,
+                Lifeguard.UNKNOWN
+            ];
+
+            // Verify that a valid result is used
+            if (valid.indexOf(result) < 0) {
+                throw new Error("Invalid result status: " + result);
+            }
+
             // Set the result on the _result attribute that is then read
             // later from Erlang.
             Lifeguard._result = {
