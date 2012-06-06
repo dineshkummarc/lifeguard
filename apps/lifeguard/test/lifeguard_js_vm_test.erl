@@ -14,11 +14,12 @@ main_test_() ->
 
 setup() ->
     % Start the erlv8 application, which is required...
-    ok = application:start(erlv8).
+    application:start(erlv8).
 
 teardown(_) ->
-    % Stop the application
-    application:stop(erlv8).
+    % We don't worry about stopping the application because other
+    % things might need it.
+    ok.
 
 %% @doc Tests that lifeguard_js_vm gen_server can start and stop properly.
 test_start_stop(_) ->

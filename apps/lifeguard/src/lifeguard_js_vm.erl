@@ -11,6 +11,10 @@
 % V8 VM just in case there are memory leaks.
 -define(MAX_TICKS, 32768).
 
+% The maximum depth that the JS to Erlang conversion recurses until
+% it throws an error.
+-define(MAX_CONVERT_DEPTH, 16).
+
 -include_lib("erlv8/include/erlv8.hrl").
 
 -ifdef(TEST).
@@ -179,24 +183,48 @@ js_convert_args1(Result, [Arg | Args]) ->
 %% recurse into objects.
 %%
 %% XXX: Handle circular references by keeping track of "depth"
-js_convert_value(Atom) when is_atom(Atom) ->
+js_convert_value(Value) ->
+    js_convert_value1(Value, 0).
+
+js_convert_value1(_Object, ?MAX_CONVERT_DEPTH) ->
+    % We recursed in too deeply, so we throw an exception!
+    throw(max_convert_depth);
+js_convert_value1(Atom, _Depth) when is_atom(Atom) ->
     % Atoms can be: null, false, true. We just let these be
     Atom;
-js_convert_value(Number) when is_number(Number) ->
+js_convert_value1(Number, _Depth) when is_number(Number) ->
     % Numbers are just numbers, let them be
     Number;
-js_convert_value(String) when is_binary(String) ->
+js_convert_value1(String, _Depth) when is_binary(String) ->
     % Binaries are just strings, let them be
     String;
-js_convert_value(Object) when is_record(Object, erlv8_object) ->
+js_convert_value1(Object, Depth) when is_record(Object, erlv8_object) ->
     % Convert the V8 object into an Erlang proplist
-    Object:proplist();
-js_convert_value(Object) when is_record(Object, erlv8_array) ->
+    js_convert_value_object(Object:proplist(), Depth, []);
+js_convert_value1(Object, Depth) when is_record(Object, erlv8_array) ->
     % Convert the V8 array into an Erlang list
-    Object:list();
-js_convert_value(Other) ->
+    js_convert_value_array(Object:list(), Depth, []);
+js_convert_value1(Other, _Depth) ->
     lager:error("Unknown JS type: ~p", [Other]),
     unknown.
+
+%% @doc Converts a JavaScript array to an Erlang list.
+js_convert_value_array([], _Depth, Result) ->
+    % Since we fold over the array in order, its built up in reverse order,
+    % so we need to reverse here to get back the order we sent in.
+    lists:reverse(Result);
+js_convert_value_array([Object | Rest], Depth, Result) ->
+    ErlValue = js_convert_value1(Object, Depth + 1),
+    js_convert_value_array(Rest, Depth, [ErlValue | Result]).
+
+%% @doc Converts a JavaScript object to an Erlang object, recursively converting
+%% keys and values as necessary.
+js_convert_value_object([], _Depth, Result) ->
+    Result;
+js_convert_value_object([{Key, Value} | Rest], Depth, Result) ->
+    ErlKey = js_convert_value1(Key, Depth + 1),
+    ErlValue = js_convert_value1(Value, Depth + 1),
+    js_convert_value_object(Rest, Depth, [{ErlKey, ErlValue} | Result]).
 
 %% @doc Gets values from a data source and returns them back to JavaScript.
 %% This method is the implementation of a function called from JavaScript.
@@ -217,11 +245,85 @@ vmid(Number) ->
 
 -ifdef(TEST).
 
-js_convert_value_test() ->
-    null = js_convert_value(null),
-    true = js_convert_value(true),
-    false = js_convert_value(false),
-    <<"foo">> = js_convert_value(<<"foo">>),
-    unknown = js_convert_value([]).
+vm_test_() ->
+    {foreach,
+        fun setup/0,
+        fun teardown/1,
+        [
+            fun test_js_convert_primitive_value/1,
+            fun test_js_convert_array/1,
+            fun test_js_convert_array_recursive/1,
+            fun test_js_convert_max_depth/1,
+            fun test_js_convert_object/1,
+            fun test_js_convert_object_recursive/1
+        ]}.
+
+setup() ->
+    % This may already be started but we just try to start it anyways
+    % because we do need it for our tests.
+    application:start(erlv8),
+
+    % Start up a new V8 VM, because each test does need an isolated
+    % one of these.
+    {ok, VM} = erlv8_vm:start(),
+    VM.
+
+teardown(VM) ->
+    erlv8_vm:stop(VM).
+
+test_js_convert_primitive_value(_VM) ->
+    fun() ->
+            null = js_convert_value(null),
+            true = js_convert_value(true),
+            false = js_convert_value(false),
+            <<"foo">> = js_convert_value(<<"foo">>),
+            unknown = js_convert_value([])
+    end.
+
+test_js_convert_array(VM) ->
+    fun() ->
+            {ok, Object} = erlv8_vm:run(VM, "var foo = [1,2,3]; foo"),
+            [1, 2, 3] = js_convert_value(Object)
+    end.
+
+test_js_convert_array_recursive(VM) ->
+    fun() ->
+            {ok, Object} = erlv8_vm:run(VM, "var foo = [[1,2],[3,4]]; foo"),
+            [[1,2], [3,4]] = js_convert_value(Object)
+    end.
+
+%% @doc Tests to make sure that when we create a JavaScript object that
+%% matches the MAX_CONVERT_DEPTH, then we get a proper exception thrown.
+test_js_convert_max_depth(VM) ->
+    fun() ->
+            JSArrayCode = lists:foldl(fun(_Elem, Result) ->
+                            "[" ++ Result ++ "]"
+                    end, "1", lists:seq(1, ?MAX_CONVERT_DEPTH)),
+            {ok, Object} = erlv8_vm:run(VM, "var foo = " ++ JSArrayCode ++ "; foo"),
+
+            ok = try js_convert_value(Object) of
+                _ ->
+                    % Not okay because we want it throw an exception
+                    not_ok
+            catch
+                throw:max_convert_depth -> ok
+            end
+    end.
+
+test_js_convert_object(VM) ->
+    fun() ->
+            {ok, Object} = erlv8_vm:run(VM, "var foo = { \"a\": \"a_value\" }; foo"),
+            Result = js_convert_value(Object),
+            {<<"a">>, <<"a_value">>} = proplists:lookup(<<"a">>, Result)
+    end.
+
+test_js_convert_object_recursive(VM) ->
+    fun() ->
+            {ok, Object} = erlv8_vm:run(VM, "var foo = { \"a\": { \"b\": 3 } }; foo"),
+            Result = js_convert_value(Object),
+
+            {<<"a">>, Inner} = proplists:lookup(<<"a">>, Result),
+            {<<"b">>, 3} = proplists:lookup(<<"b">>, Inner)
+    end.
 
 -endif.
