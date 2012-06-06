@@ -22,7 +22,7 @@
         // will be passed through directly to the data source.
         get: function(data_source) {
             var ds_args = Array.prototype.slice.call(arguments, 1, arguments.length);
-            Lifeguard._erl_get(data_source, ds_args);
+            return Lifeguard._erl_get(data_source, ds_args);
         },
 
         // Set the result of a watch. This can be called multiple times if you

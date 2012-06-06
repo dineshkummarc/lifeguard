@@ -3,7 +3,7 @@
 
 -module(lifeguard_ds_garbage).
 -behavior(gen_server).
--export([start_link/2]).
+-export([start_link/3]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -ifdef(TEST).
@@ -11,8 +11,7 @@
 -endif.
 
 %% @doc Start the data source in a supervision tree.
-start_link(Name, _Args) ->
-    ServerRef = list_to_atom("ds_" ++ Name),
+start_link(ServerRef, _Name, _Args) ->
     gen_server:start_link({local, ServerRef}, ?MODULE, [], []).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

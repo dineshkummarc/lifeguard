@@ -20,7 +20,15 @@ start_link(DataSources) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 init(DataSources) ->
-    SourceNames = [Name || {Name, _, _} <- DataSources],
+    % Get all the source names
+    RawSourceNames = [Name || {Name, _, _} <- DataSources],
+    SourceNames = lists:map(fun(Value) ->
+                    case Value of
+                        Binary when is_binary(Binary) -> Binary;
+                        List when is_list(List) -> list_to_binary(List);
+                        Other -> throw({not_binary, Other})
+                    end
+            end, RawSourceNames),
 
     % Add all the individual sources
     SourceSpecs = [data_source_spec(Source) || Source <- DataSources],
@@ -37,16 +45,21 @@ init(DataSources) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 data_source_spec({Name, Module, Args}) ->
+    ID = lifeguard_ds_manager:data_source_id(Name),
+
     {{data_source, Name},
-        {Module, start_link, [Name, Args]},
+        {Module, start_link, [ID, Name, Args]},
         permanent, 30000, worker, [Module]}.
 
 -ifdef(TEST).
 
 data_source_spec_test() ->
-    Expected = {{data_source, "garbage"},
-        {my_module, start_link, ["garbage", [arg]]},
+    Name = <<"garbage">>,
+    ID   = lifeguard_ds_manager:data_source_id(Name),
+
+    Expected = {{data_source, Name},
+        {my_module, start_link, [ID, Name, [arg]]},
         permanent, 30000, worker, [my_module]},
-    Expected = data_source_spec({"garbage", my_module, [arg]}).
+    Expected = data_source_spec({Name, my_module, [arg]}).
 
 -endif.

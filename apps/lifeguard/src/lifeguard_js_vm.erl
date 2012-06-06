@@ -121,6 +121,54 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 % Internal functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+%% @doc Converts an Erlang value to a value compatible with V8.
+erl_to_js(Binary) when is_binary(Binary) ->
+    % Binaries are just strings, so we return them as-is
+    Binary;
+erl_to_js(Number) when is_number(Number) ->
+    % Numbers can be returned as-is as well
+    Number;
+erl_to_js(Atom) when is_atom(Atom) ->
+    case Atom of
+        % null, false, and true are special in that they turn into JavaScript
+        % primitives of the same names, so just return
+        false -> false;
+        true -> true;
+        null -> null;
+
+        % Otherwise, convert it to a JS String
+        Other -> atom_to_binary(Other, utf8)
+    end;
+erl_to_js(List) when is_list(List) ->
+    % For our case, we want the empty list to NOT be a proplist (although
+    % technically it is a valid proplist), since we want that to signal
+    % an empty array.
+    IsProplist = case List of
+        [] -> false;
+        Other -> is_proplist(Other)
+    end,
+
+    case IsProplist of
+        true ->
+            % This is a proplist, so we convert each item to a JS object
+            % (keys and values), and then we return our own JS object
+            ConvertedProps = lists:map(fun({Key, Value}) ->
+                            JSKey = erl_to_js(Key),
+                            JSVal = erl_to_js(Value),
+                            {JSKey, JSVal}
+                    end, List),
+
+            % Build the actual V8 object
+            erlv8_object:new(ConvertedProps);
+        false ->
+            % This is not a proplist, so we just convert it to an array.
+            ConvertedList = lists:map(fun(Value) -> erl_to_js(Value) end, List),
+            erlv8_array:new(ConvertedList)
+    end;
+erl_to_js(Other) ->
+    lager:error("Unknown Erlang value to convert to JS: ~p", [Other]),
+    throw({bad_value, Other}).
+
 increment_ticks(State) ->
     NewTicks = State#vm_state.ticks + 1,
     if
@@ -166,6 +214,15 @@ init_vm_globals(VM) ->
     lists:foreach(fun({Name, Method}) ->
                 Lifeguard:set_value(Name, Method)
         end, ErlangJSMethods).
+
+%% @doc Returns a boolean of whether a given list is a valid proplist
+%% or not.
+is_proplist([]) ->
+    true;
+is_proplist([{_Key, _Value} | Rest]) ->
+    is_proplist(Rest);
+is_proplist(_Other) ->
+    false.
 
 %% @doc Converts an array of JavaScript values into Erlang values. Arrays
 %% are turned into lists, objects are turned into proplists.
@@ -231,7 +288,17 @@ js_convert_value_object([{Key, Value} | Rest], Depth, Result) ->
 js_get([DataSource, Args]) ->
     % Convert the array of JavaScript arguments to Erlang values
     ErlArgs = js_convert_args(Args:list()),
-    lager:info("Get: ~p ~p", [DataSource, ErlArgs]).
+    lager:info("Get: ~p ~p", [DataSource, ErlArgs]),
+
+    % Get the actual result
+    case lifeguard_ds_manager:get(DataSource, ErlArgs) of
+        {ok, Result} ->
+            lager:debug("Result: ~p", [Result]),
+            erl_to_js(Result);
+        {error, Message} ->
+            lager:debug("Error: ~p", [Message]),
+            {throw, {error, atom_to_binary(Message, utf8)}}
+    end.
 
 set_idle(VMID) ->
     lifeguard_js_manager:idle_vm(VMID).
@@ -244,6 +311,28 @@ vmid(Number) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -ifdef(TEST).
+
+erl_to_js_primitive_test() ->
+    5 = erl_to_js(5),
+    false = erl_to_js(false),
+    true = erl_to_js(true),
+    null = erl_to_js(null),
+    <<"foo">> = erl_to_js(<<"foo">>),
+    <<"bar">> = erl_to_js(bar).
+
+erl_to_js_list_test() ->
+    JSList = erl_to_js([1,2,3]),
+    ?assert(is_record(JSList, erlv8_array)).
+
+erl_to_js_object_test() ->
+    JSObject = erl_to_js([{key, value}]),
+    ?assert(is_record(JSObject, erlv8_object)).
+
+is_proplist_test() ->
+    false = is_proplist(12),
+    true = is_proplist([]),
+    true = is_proplist([{key, value}]),
+    true = is_proplist([{key, value}, {key2, value2}]).
 
 vm_test_() ->
     {foreach,

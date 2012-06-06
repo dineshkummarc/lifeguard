@@ -18,12 +18,13 @@ main_test_() ->
         ]}.
 
 setup() ->
-    SourceName = "echo",
+    SourceName = <<"echo">>,
+    SourceID   = lifeguard_ds_manager:data_source_id(SourceName),
     ManagerPid = case ?TEST_MODULE:start_link([SourceName]) of
         {ok, Pid} -> Pid;
         {error, {already_started, Pid}} -> Pid
     end,
-    SourcePid = case lifeguard_ds_echo:start_link(SourceName, []) of
+    SourcePid = case lifeguard_ds_echo:start_link(SourceID, SourceName, []) of
         {ok, Pid2} -> Pid2;
         {error, {already_started, Pid2}} -> Pid2
     end,
@@ -46,7 +47,7 @@ test_list(#test_state{source_name=SourceName}) ->
     fun() -> {ok, [SourceName]} = ?TEST_MODULE:list() end.
 
 test_call_bad_source(_State) ->
-    fun() -> {error, no_data_source} = ?TEST_MODULE:get("this_is_a_bad_name", []) end.
+    fun() -> {error, no_data_source} = ?TEST_MODULE:get(<<"this_is_a_bad_name">>, []) end.
 
 test_call_good_source(#test_state{source_name=Source}) ->
     fun() -> {ok, result} = ?TEST_MODULE:get(Source, [result]) end.
