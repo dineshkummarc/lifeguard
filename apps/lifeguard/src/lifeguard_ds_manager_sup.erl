@@ -21,14 +21,7 @@ start_link(DataSources) ->
 
 init(DataSources) ->
     % Get all the source names
-    RawSourceNames = [Name || {Name, _, _} <- DataSources],
-    SourceNames = lists:map(fun(Value) ->
-                    case Value of
-                        Binary when is_binary(Binary) -> Binary;
-                        List when is_list(List) -> list_to_binary(List);
-                        Other -> throw({not_binary, Other})
-                    end
-            end, RawSourceNames),
+    SourceNames = [Name || {Name, _, _} <- DataSources],
 
     % Add all the individual sources
     SourceSpecs = [data_source_spec(Source) || Source <- DataSources],
@@ -45,10 +38,18 @@ init(DataSources) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 data_source_spec({Name, Module, Args}) ->
-    ID = lifeguard_ds_manager:data_source_id(Name),
+    % We require that the Name be a binary, but let's do our best to
+    % get it there so that users can put in whatever they want..
+    BinaryName = case Name of
+        Binary when is_binary(Binary) -> Binary;
+        List when is_list(List) -> list_to_binary(List);
+        Other -> throw({not_binary, Other})
+    end,
 
-    {{data_source, Name},
-        {Module, start_link, [ID, Name, Args]},
+    ID = lifeguard_ds_manager:data_source_id(BinaryName),
+
+    {{data_source, BinaryName},
+        {Module, start_link, [ID, BinaryName, Args]},
         permanent, 30000, worker, [Module]}.
 
 -ifdef(TEST).
