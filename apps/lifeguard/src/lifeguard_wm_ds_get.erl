@@ -20,7 +20,7 @@ content_types_provided(ReqData, Context) ->
     {[{"application/json", to_json}], ReqData, Context}.
 
 malformed_request(ReqData, Context) ->
-    DSName = wrq:path_info(name, ReqData),
+    DSName = list_to_binary(wrq:path_info(name, ReqData)),
     DSArgs = case wrq:get_qs_value("args", ReqData) of
         undefined -> [];
         RawArgs   ->
