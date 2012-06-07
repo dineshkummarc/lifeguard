@@ -40,10 +40,9 @@ init(DataSources) ->
 data_source_spec({Name, Module, Args}) ->
     % We require that the Name be a binary, but let's do our best to
     % get it there so that users can put in whatever they want..
-    BinaryName = case Name of
-        Binary when is_binary(Binary) -> Binary;
-        List when is_list(List) -> list_to_binary(List);
-        Other -> throw({not_binary, Other})
+    BinaryName = case lifeguard_util:to_binary(Name) of
+        {ok, BinValue} -> BinValue;
+        {error, cant_convert} -> throw({not_binary, Name})
     end,
 
     ID = lifeguard_ds_manager:data_source_id(BinaryName),

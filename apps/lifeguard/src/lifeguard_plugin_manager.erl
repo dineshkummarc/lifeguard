@@ -10,7 +10,14 @@
 
 %% @doc Start the plugin manager.
 start_link(PluginPath) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [PluginPath], []).
+    % We require that the plugin path be a binary, so let's do our best
+    % to convert it, since user's enter it.
+    BinPluginPath = case lifeguard_util:to_binary(PluginPath) of
+        {ok, BinValue} -> BinValue;
+        {error, cant_convert} -> throw({not_binary, PluginPath})
+    end,
+
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [BinPluginPath], []).
 
 %% @doc Load a plugin, which is just an OTP application, with
 %% the given name.
