@@ -27,6 +27,7 @@ init([]) ->
     {ok, DataSources}    = application:get_env(data_sources),
     {ok, JsPendingLimit} = application:get_env(js_pending_limit),
     {ok, JsVMCount}      = application:get_env(js_vm_count),
+    {ok, PluginPath}     = application:get_env(plugin_path),
     {ok, StoragePath}    = application:get_env(storage_path),
     {ok, HTTPIP}         = application:get_env(http_ip),
     {ok, HTTPPort}       = application:get_env(http_port),
@@ -51,6 +52,11 @@ init([]) ->
         {lifeguard_js_manager_sup, start_link, [JsVMCount, JsPendingLimit]},
         permanent, 30000, supervisor, dynamic},
 
+    % Plugin manager
+    PluginManager = {plugin_manager,
+        {lifeguard_plugin_manager, start_link, [PluginPath]},
+        permanent, 30000, worker, dynamic},
+
     % Watch manager
     WatchManager = {watch_manager,
         {lifeguard_watch_manager, start_link, [StoragePath]},
@@ -62,5 +68,5 @@ init([]) ->
            permanent, 30000, worker, dynamic},
 
     % Return the full spec
-    Children = [DSManager, JsManager, WatchManager, Web],
+    Children = [DSManager, JsManager, PluginManager, WatchManager, Web],
     {ok, { {one_for_one, 5, 10}, Children} }.
