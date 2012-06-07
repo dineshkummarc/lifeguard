@@ -32,6 +32,7 @@ init([PluginPath, InitialPlugins]) ->
     lager:info("Plugin manager started."),
 
     % Start all the initial plugins
+    % XXX: Error handling here
     lists:foreach(fun(X) -> start_plugin(PluginPath, X) end, InitialPlugins),
 
     % Booted!
@@ -76,5 +77,7 @@ start_plugin(RootPath, Name) ->
                 end, LibDirs),
 
             % Finally, start the application
+            % XXX: Error handling: application doesn't exist, application
+            % dependency not started, application start failure.
             application:start(Name)
     end.
