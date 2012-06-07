@@ -15,7 +15,7 @@
                  ]},
   {mod, { lifeguard_app, []}},
   {env, [
-          {data_sources, [{"garbage", lifeguard_ds_garbage, []}]},
+          {data_sources, []},
           {http_ip, "0.0.0.0"},
           {http_port, 5433},
           {js_pending_limit, 128},
