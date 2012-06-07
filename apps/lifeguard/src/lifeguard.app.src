@@ -18,8 +18,8 @@
           {data_sources, [{"garbage", lifeguard_ds_garbage, []}]},
           {http_ip, "0.0.0.0"},
           {http_port, 5433},
-          {storage_path, "/tmp/lifeguard.db"},
           {js_pending_limit, 128},
-          {js_vm_count, 8}
+          {js_vm_count, 8},
+          {storage_path, "/tmp/lifeguard.db"}
       ]}
  ]}.
