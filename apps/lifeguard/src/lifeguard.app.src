@@ -20,7 +20,7 @@
           {http_port, 5433},
           {js_pending_limit, 128},
           {js_vm_count, 8},
-          {plugin_path, ""},
+          {plugin_path, <<"/tmp/plugins">>},
           {plugins, []},
           {storage_path, "/tmp/lifeguard.db"}
       ]}
